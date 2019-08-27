@@ -15,13 +15,13 @@
 #pragma once
 
 #include <QtCore/QThread>
-#include <QtScript/QScriptEngine>
+#include <QJSEngine>
 
 namespace trikScriptRunner {
 
 class Threading;
 
-/// Thread object which executes a script with a QScriptEngine
+/// Thread object which executes a script with a QJSEngine
 class ScriptThread : public QThread
 {
 	Q_OBJECT
@@ -29,9 +29,9 @@ class ScriptThread : public QThread
 public:
 	/// Constructor
 	/// @param threading - threading manager for this thread
-	/// @param engine - QScriptEngine which will do the work
+	/// @param engine - QJSEngine which will do the work
 	/// @param script - a Qt Script to run
-	ScriptThread(Threading &threading, const QString &id, QScriptEngine *engine, const QString &script);
+	ScriptThread(Threading &threading, const QString &id, QJSEngine *engine, const QString &script);
 
 	~ScriptThread() override;
 
@@ -43,9 +43,6 @@ public:
 
 	/// @returns error message or empty string if evalutation succeed
 	QString error() const;
-
-	/// @returns true if the script engine is evaluating a script at the moment
-	bool isEvaluating() const;
 
 signals:
 	/// Emitted when event loop must be stopped.
@@ -67,7 +64,7 @@ private:
 	QString mId;
 
 	/// Has ownership (thru deleteLater() call).
-	QScriptEngine *mEngine;
+	QJSEngine *mEngine;
 	QString mScript;
 
 	Threading &mThreading;

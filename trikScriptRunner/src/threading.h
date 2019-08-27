@@ -20,7 +20,7 @@
 #include <QtCore/QWaitCondition>
 #include <QtCore/QSet>
 
-#include <QtScript/QScriptEngine>
+#include <QJSEngine>
 
 #include "scriptExecutionControl.h"
 
@@ -45,17 +45,17 @@ public:
 
 	/// Starts a thread with given threadId.
 	/// @param function - a thread routine
-	Q_INVOKABLE void startThread(const QScriptValue &threadId, const QScriptValue &function);
+	Q_INVOKABLE void startThread(const QJSValue &threadId, const QJSValue &function);
 
 	/// Joins a thread with given threadId. Does nothing if there is no thread with such id.
 	Q_INVOKABLE void joinThread(const QString &threadId);
 
 	/// Sends message to a mailbox with given threadId, even if such thread does not exist.
 	/// The message can be accessed in the future by any thread with the same threadId.
-	Q_INVOKABLE void sendMessage(const QString &threadId, const QScriptValue &message);
+	Q_INVOKABLE void sendMessage(const QString &threadId, const QJSValue &message);
 
 	/// Designed to be called from a thread receiving a message.
-	Q_INVOKABLE QScriptValue receiveMessage(bool waitForMessage = true);
+	Q_INVOKABLE QJSValue receiveMessage(bool waitForMessage = true);
 
 	/// Stops given thread.
 	Q_INVOKABLE void killThread(const QString &threadId);
@@ -97,11 +97,11 @@ private:
 	/// Starts a thread with given threadId
 	/// @param engine - script engine that will do the work; it will be owned by a newly created thread
 	/// @param script - exact script to evaluate in new thread
-	void startThread(const QString &threadId, QScriptEngine *engine, const QString &script);
+	void startThread(const QString &threadId, QJSEngine *engine, const QString &script);
 
 	/// Create new engine and initialize it with a context of given engine
 	/// The caller is responsible for deletion of created engine.
-	QScriptEngine *cloneEngine(QScriptEngine *engine);
+	QJSEngine *cloneEngine(QJSEngine *engine);
 
 	/// Utility function which locks reset mutex in case if reset is not started.
 	bool tryLockReset();
@@ -112,7 +112,7 @@ private:
 	QMutex mThreadsMutex;
 	QString mErrorMessage;
 
-	QHash<QString, QQueue<QScriptValue>> mMessageQueues;
+	QHash<QString, QQueue<QJSValue>> mMessageQueues;
 	QMutex mMessageMutex;
 	QHash<QString, QMutex *> mMessageQueueMutexes;
 	QHash<QString, QWaitCondition *> mMessageQueueConditions;
@@ -124,7 +124,7 @@ private:
 	ScriptExecutionControl &mScriptControl;
 	QString mScript;
 
-	QScriptEngine *mMainScriptEngine; // Doesn't have ownership.
+	QJSEngine *mMainScriptEngine; // Doesn't have ownership.
 	const QString mMainThreadName = "main";
 };
 

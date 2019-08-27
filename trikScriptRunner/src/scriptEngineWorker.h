@@ -14,11 +14,11 @@
 
 #pragma once
 
+#include <QJSEngine>
 #include <functional>
 
 #include <QtCore/QString>
 #include <QtCore/QThread>
-#include <QtScript/QScriptEngine>
 
 #include <trikControl/brickInterface.h>
 #include <trikNetwork/mailboxInterface.h>
@@ -29,7 +29,7 @@
 namespace trikScriptRunner
 {
 
-/// Worker object to be run in a separate thread for Qt Script execution. QScriptEngine calls ProcessEvents too
+/// Worker object to be run in a separate thread for QJSEngine execution. QJSEngine calls ProcessEvents too
 /// infrequently even when ProcessEventsInterval is set to 1 ms, so there is a need for separate threads to
 /// run a script and listen for incoming connections.
 class ScriptEngineWorker : public QObject
@@ -49,20 +49,20 @@ public:
 	/// Create and initialize a new script engine.
 	/// Can be safely called from other threads.
 	/// @param supportThreads - true if created engine should support creation of threads.
-	QScriptEngine *createScriptEngine(bool supportThreads = true);
+	QJSEngine *createScriptEngine(bool supportThreads = true);
 
 	/// Copies given script engine creating a new one with the same context as existing one.
 	/// Note that functions will not be copied to a new engine due to limitations of Qt Scripting engine,
 	/// they need to be re-evaluated manually.
 	/// Can be safely called from other threads (to some extent. Original engine shall not simultaneously evaluate).
-	QScriptEngine *copyScriptEngine(const QScriptEngine * original);
+	QJSEngine *copyScriptEngine(const QJSEngine * original);
 
 	/// Registers given C++ function as callable from script, with given name.
 	/// Can be safely called from other threads (but it shall not be called simultaneously with engine creation).
-	void registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function);
+	void registerUserFunction(const QString &name, const std::function<QVariant> &function);
 
 	/// Helper for adding custom initialization steps when creating script engine from outside of the TrikRuntime.
-	void addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step);
+	void addCustomEngineInitStep(const std::function<void (QJSEngine *)> &step);
 
 	/// Clears execution state and stops robot.
 	/// Can be safely called from other threads.
@@ -144,7 +144,7 @@ private:
 	void startScriptEvaluation(int scriptId);
 
 	/// Evaluates "system.js" file in given engine.
-	void evalSystemJs(QScriptEngine * engine) const;
+	void evalSystemJs(QJSEngine * engine) const;
 
 	/// Collects all methods names from given metaObject.
 	/// If the returnType of given method name is registered in metaobject system,
@@ -155,11 +155,11 @@ private:
 	trikNetwork::MailboxInterface * const mMailbox;  // Does not have ownership.
 	ScriptExecutionControl &mScriptControl;
 	Threading mThreading;
-	QScriptEngine *mDirectScriptsEngine = nullptr;  // Has ownership.
+	QJSEngine *mDirectScriptsEngine = nullptr;  // Has ownership.
 	int mScriptId = 0;
 	State mState = State::ready;
-	QHash<QString, QScriptEngine::FunctionSignature> mRegisteredUserFunctions;
-	QVector<std::function<void (QScriptEngine *)>> mCustomInitSteps;
+	QHash<QString, QJSValue> mRegisteredUserFunctions;
+	QVector<std::function<void (QJSEngine *)>> mCustomInitSteps;
 
 	/// Ensures that there is only one instance of StopScript running at any given time, to prevent unpredicted
 	/// behavior when programs are started and stopped actively.

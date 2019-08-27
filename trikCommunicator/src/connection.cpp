@@ -13,7 +13,7 @@
  * limitations under the License. */
 
 #include <trikKernel/fileUtils.h>
-#include <trikScriptRunner/trikScriptRunner.h>
+//#include <trikScriptRunner/trikScriptRunner.h>
 
 #include "src/connection.h"
 

@@ -52,15 +52,15 @@ OTHER_FILES += \
 	$$PWD/system.py \
 
 INCLUDEPATH += \
-        $$PWD/PyTrikControl \
-        $$PWD/../trikControl/src \
-        $$PWD/../trikControl/include/trikControl \
+	$$PWD/PyTrikControl \
+	$$PWD/../trikControl/src \
+	$$PWD/../trikControl/include/trikControl \
 
 TRANSLATIONS = \
 	$$PWD/../translations/ru/trikScriptRunner_ru.ts \
 	$$PWD/../translations/fr/trikScriptRunner_fr.ts \
 
-QT += script network
+QT += qml network
 
 DEFINES += TRIKSCRIPTRUNNER_LIBRARY
 

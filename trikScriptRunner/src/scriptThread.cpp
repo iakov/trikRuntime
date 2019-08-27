@@ -16,7 +16,7 @@
 
 #include <QtCore/QEventLoop>
 #include <QtCore/QDateTime>
-#include <QScriptValueIterator>
+#include <QJSValueIterator>
 #include <QJsonObject>
 
 #include "threading.h"
@@ -24,7 +24,7 @@
 
 using namespace trikScriptRunner;
 
-ScriptThread::ScriptThread(Threading &threading, const QString &id, QScriptEngine *engine, const QString &script)
+ScriptThread::ScriptThread(Threading &threading, const QString &id, QJSEngine *engine, const QString &script)
 	: mId(id)
 	, mEngine(engine)
 	, mScript(script)
@@ -42,11 +42,11 @@ void ScriptThread::run()
 
 	qsrand(QDateTime::currentMSecsSinceEpoch());
 
-	mEngine->evaluate(mScript);
+	auto res = mEngine->evaluate(mScript);
 
-	if (mEngine->hasUncaughtException()) {
-		const int line = mEngine->uncaughtExceptionLineNumber();
-		const QString message = mEngine->uncaughtException().toString();
+	if (res.isError()) {
+		auto line = res.property("lineNumber").toInt();
+		auto message = res.property("message").toString();
 		mError = tr("Line %1: %2").arg(QString::number(line), message);
 		QLOG_ERROR() << "Uncaught exception at line" << line << ":" << message;
 	} else if (mThreading.inEventDrivenMode()) {
@@ -62,7 +62,9 @@ void ScriptThread::run()
 
 void ScriptThread::abort()
 {
-	mEngine->abortEvaluation();
+#if 0 // probably, QT 5.13 has this
+	mEngine->setInterrupted(true);
+#endif
 	emit stopRunning();
 }
 
@@ -76,17 +78,12 @@ QString ScriptThread::error() const
 	return mError;
 }
 
-bool ScriptThread::isEvaluating() const
-{
-	return mEngine->isEvaluating();
-}
-
 
 /* TODO: Fix design error. This slot is called on wrong thread (probably) */
 void ScriptThread::onGetVariables(const QString &propertyName)
 {
 	if (mEngine != nullptr) {
-		QScriptValueIterator it(mEngine->globalObject().property(propertyName));
+		QJSValueIterator it(mEngine->globalObject().property(propertyName));
 		QJsonObject json;
 		while (it.hasNext()) {
 			it.next();

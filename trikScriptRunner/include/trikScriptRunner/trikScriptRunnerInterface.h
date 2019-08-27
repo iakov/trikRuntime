@@ -19,7 +19,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QScopedPointer>
 #include <QtCore/QThread>
-#include <QtScript/QScriptEngine>
+#include <QJSEngine>
 
 #ifndef TRIKSCRIPTRUNNER_EXPORT
 #  if defined(TRIKSCRIPTRUNNER_LIBRARY)
@@ -51,10 +51,10 @@ class TRIKSCRIPTRUNNER_EXPORT TrikScriptRunnerInterface : public QObject
 
 public:
 	/// Registers given C++ function as callable from script, with given name.
-	virtual void registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function) = 0;
+	virtual void registerUserFunction(const QString &name, const std::function<QVariant> &function ) = 0;
 
 	/// Adds custom initialization steps when creating script engine (useful when used from outside of the TrikRuntime).
-	virtual void addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step) = 0;
+	virtual void addCustomEngineInitStep(const std::function<void (QJSEngine *)> &step) = 0;
 
 	/// Gets all method names from executive objects (brick, script, etc.) from ScriptEngineWorker
 	/// (useful when used from outside of the TrikRuntime).
@@ -69,7 +69,7 @@ public slots:
 	/// @warning: The multithreaded script must not contain useful actions in the global context
 	/// (function calls, variable initializations and so on in the global context is restricted).
 	/// The reason is in non-thread-safety of script engine. We must run scripts by separate script engines
-	/// and thus to have an opportunity to start concrete function from the given file. But QScriptEngine API
+	/// and thus to have an opportunity to start concrete function from the given file. But QJSEngine API
 	/// has no such possibility so we should append function call to the end of the script. So if script will
 	/// run some actions in the global context they will be invoked on each thread start.
 	virtual void run(const QString &script, const QString &fileName = "") = 0;

@@ -61,12 +61,14 @@ TrikJavaScriptRunner::~TrikJavaScriptRunner()
 	mWorkerThread.wait(1000);
 }
 
-void TrikJavaScriptRunner::registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function)
+
+// TODO: use hack from https://stackoverflow.com/a/35094857
+void TrikJavaScriptRunner::registerUserFunction(const QString &name, const std::function<QVariant> &function)
 {
 	mScriptEngineWorker->registerUserFunction(name, function);
 }
 
-void TrikJavaScriptRunner::addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step)
+void TrikJavaScriptRunner::addCustomEngineInitStep(const std::function<void (QJSEngine *)> &step)
 {
 	mScriptEngineWorker->addCustomEngineInitStep(step);
 }

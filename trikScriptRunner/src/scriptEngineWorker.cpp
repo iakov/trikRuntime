@@ -94,8 +94,8 @@ Q_DECLARE_METATYPE(QTimer*)
 	TEMPLATE(VectorSensorInterface)
 
 REGISTER_DEVICES_WITH_TEMPLATE(DECLARE_METATYPE_TEMPLATE)
-
-QScriptValue print(QScriptContext *context, QScriptEngine *engine)
+/*
+QJSValue print(QScriptContext *context, QJSEngine *engine)
 {
 	QString result;
 	result.reserve(100000);
@@ -126,7 +126,7 @@ QScriptValue print(QScriptContext *context, QScriptEngine *engine)
 				? arrayPrettyPrinter(elem.toList())
 				: elem.toString();
 		};
-		QScriptValue argument = context->argument(i);
+		QJSValue argument = context->argument(i);
 		result.append(prettyPrinter(argument.toVariant()));
 	}
 
@@ -140,11 +140,12 @@ QScriptValue print(QScriptContext *context, QScriptEngine *engine)
 	return engine->toScriptValue(result);
 }
 
-QScriptValue timeInterval(QScriptContext *context, QScriptEngine *engine)
+QJSValue timeInterval(QScriptContext *context, QJSEngine *engine)
 {
 	int result = trikKernel::TimeVal::timeInterval(context->argument(0).toInt32(), context->argument(1).toInt32());
 	return engine->toScriptValue(result);
 }
+*/
 
 static inline int32_t getMedian(uint8_t &a, uint8_t &b, uint8_t &c, uint8_t &d)
 {
@@ -159,17 +160,15 @@ static inline int32_t getMedian(uint8_t &a, uint8_t &b, uint8_t &c, uint8_t &d)
 	return (static_cast<int32_t>(b) + c) >> 1;
 }
 
-QScriptValue getPhoto(QScriptContext *context,	QScriptEngine *engine)
+QJSValue getPhoto(QJSEngine *engine)
 {
-	const QScriptValue & brickValue = engine->globalObject().property("brick");
+	const QJSValue & brickValue = engine->globalObject().property("brick");
 	QObject *qObjBrick = brickValue.toQObject();
 	if (qObjBrick)
 	{
 		BrickInterface *brick = qobject_cast<BrickInterface*>(qObjBrick);
 		if (brick)
 		{
-			auto port = context->argumentCount() > 0 ? context->argument(0).toString()
-				: QString("/dev/video0");
 			QLOG_INFO() << "Calling getStillImage()";
 			auto data = brick->getStillImage();
 			QList<int32_t> result;
@@ -209,13 +208,13 @@ QScriptValue getPhoto(QScriptContext *context,	QScriptEngine *engine)
 		else
 		{
 			QLOG_ERROR() << "script getPhoto failed at downcasting qObject to Brick";
-			return QScriptValue();
+			return QJSValue();
 		}
 	}
 	else
 	{
 		QLOG_ERROR() << "script getPhoto failed to get brick Obj";
-		return QScriptValue();
+		return QJSValue();
 	}
 
 }
@@ -236,10 +235,11 @@ ScriptEngineWorker::ScriptEngineWorker(trikControl::BrickInterface &brick
 	connect(this, SIGNAL(getVariables(QString)), &mThreading, SIGNAL(getVariables(QString)));
 	connect(&mThreading, SIGNAL(variablesReady(QJsonObject)), this, SIGNAL(variablesReady(QJsonObject)));
 
+	/*
 	registerUserFunction("print", print);
 	registerUserFunction("timeInterval", timeInterval);
 	registerUserFunction("getPhoto", getPhoto);
-
+*/
 	REGISTER_DEVICES_WITH_TEMPLATE(REGISTER_METATYPE)
 }
 
@@ -284,12 +284,9 @@ void ScriptEngineWorker::stopScript()
 	QMetaObject::invokeMethod(&mThreading, "reset", Qt::QueuedConnection);
 
 	if (mDirectScriptsEngine) {
-		mDirectScriptsEngine->abortEvaluation();
+		//TODO: mDirectScriptsEngine->abortEvaluation();
 		QLOG_INFO() << "ScriptEngineWorker : ending interpretation";
-		emit completed(mDirectScriptsEngine->hasUncaughtException()
-						? mDirectScriptsEngine->uncaughtException().toString()
-						: ""
-				, mScriptId);
+		emit completed("", mScriptId);
 
 		mDirectScriptsEngine->deleteLater();
 		mDirectScriptsEngine = nullptr;
@@ -369,15 +366,16 @@ void ScriptEngineWorker::doRunDirect(const QString &command, int scriptId)
 	}
 
 	if (mDirectScriptsEngine) {
-		mDirectScriptsEngine->evaluate(command);
+		auto res = mDirectScriptsEngine->evaluate(command);
 
 		/// If script was stopped by quit(), engine will already be reset to nullptr in ScriptEngineWorker::stopScript.
-		if (mDirectScriptsEngine && mDirectScriptsEngine->hasUncaughtException()) {
-			QLOG_INFO() << "ScriptEngineWorker : ending interpretation of direct script";
-			emit completed(mDirectScriptsEngine->hasUncaughtException()
-					? mDirectScriptsEngine->uncaughtException().toString()
-					: "", mScriptId);
+		if (mDirectScriptsEngine) {
 			mDirectScriptsEngine->deleteLater();
+		}
+
+		if (res.isError()) {
+			QLOG_INFO() << "ScriptEngineWorker : ending interpretation of direct script";
+			emit completed(res.property("message").toString(), mScriptId);
 			mDirectScriptsEngine = nullptr;
 		}
 	}
@@ -402,31 +400,31 @@ void ScriptEngineWorker::onScriptRequestingToQuit()
 	stopScript();
 }
 
-static QScriptValue timeValToScriptValue(QScriptEngine *engine, const trikKernel::TimeVal &in)
+static QJSValue timeValToScriptValue(QJSEngine *engine, const trikKernel::TimeVal &in)
 {
-	QScriptValue obj = engine->newObject();
+	QJSValue obj = engine->newObject();
 	obj.setProperty("mcsec", in.packedUInt32());
 	return obj;
 }
 
-static void timeValFromScriptValue(const QScriptValue &object, trikKernel::TimeVal &out)
+static void timeValFromScriptValue(const QJSValue &object, trikKernel::TimeVal &out)
 {
-	out = trikKernel::TimeVal(0, object.property("mcsec").toInt32());
+	out = trikKernel::TimeVal(0, object.property("mcsec").toInt());
 }
 
-QScriptEngine * ScriptEngineWorker::createScriptEngine(bool supportThreads)
+QJSEngine * ScriptEngineWorker::createScriptEngine(bool supportThreads)
 {
-	QScriptEngine *engine = new QScriptEngine();
+	QJSEngine *engine = new QJSEngine();
 	QLOG_INFO() << "New script engine" << engine << ", thread:" << QThread::currentThread();
 
 
-	REGISTER_DEVICES_WITH_TEMPLATE(REGISTER_METATYPE_FOR_ENGINE)
+//	REGISTER_DEVICES_WITH_TEMPLATE(REGISTER_METATYPE_FOR_ENGINE)
 
-	Scriptable<QTimer>::registerMetatype(engine);
-	qScriptRegisterMetaType(engine, &timeValToScriptValue, &timeValFromScriptValue);
-	qScriptRegisterSequenceMetaType<QVector<int>>(engine);
-	qScriptRegisterSequenceMetaType<QStringList>(engine);
-	qScriptRegisterSequenceMetaType<QVector<uint8_t>>(engine);
+//	Scriptable<QTimer>::registerMetatype(engine);
+//	qScriptRegisterMetaType(engine, &timeValToScriptValue, &timeValFromScriptValue);
+//	qScriptRegisterSequenceMetaType<QVector<int>>(engine);
+//	qScriptRegisterSequenceMetaType<QStringList>(engine);
+//	qScriptRegisterSequenceMetaType<QVector<uint8_t>>(engine);
 
 	engine->globalObject().setProperty("brick", engine->newQObject(&mBrick));
 	engine->globalObject().setProperty("script", engine->newQObject(&mScriptControl));
@@ -451,15 +449,14 @@ QScriptEngine * ScriptEngineWorker::createScriptEngine(bool supportThreads)
 		step(engine);
 	}
 
-	engine->setProcessEventsInterval(1);
 	return engine;
 }
 
-QScriptEngine *ScriptEngineWorker::copyScriptEngine(const QScriptEngine * const original)
+/*QJSEngine *ScriptEngineWorker::copyScriptEngine(const QJSEngine * const original)
 {
-	QScriptEngine *const result = createScriptEngine();
+	QJSEngine *const result = createScriptEngine();
 
-	QScriptValue globalObject = result->globalObject();
+	QJSValue globalObject = result->globalObject();
 	Utils::copyRecursivelyTo(original->globalObject(), globalObject, result);
 	result->setGlobalObject(globalObject);
 
@@ -469,33 +466,34 @@ QScriptEngine *ScriptEngineWorker::copyScriptEngine(const QScriptEngine * const 
 
 	return result;
 }
-
-void ScriptEngineWorker::registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function)
+*/
+void ScriptEngineWorker::registerUserFunction(const QString &name, const std::function<QVariant> &function)
 {
-	mRegisteredUserFunctions[name] = function;
+	throw std::logic_error("Not implemented");
 }
 
-void ScriptEngineWorker::addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step)
+void ScriptEngineWorker::addCustomEngineInitStep(const std::function<void (QJSEngine *)> &step)
 {
 	mCustomInitSteps.append(step);
 }
 
-void ScriptEngineWorker::evalSystemJs(QScriptEngine * const engine) const
+void ScriptEngineWorker::evalSystemJs(QJSEngine * const engine) const
 {
-	const QString systemJsPath = trikKernel::Paths::systemScriptsPath() + "system.js";
+	constexpr auto systemjs = "system.js";
+	const QString systemJsPath = trikKernel::Paths::systemScriptsPath() + systemjs;
 	if (QFile::exists(systemJsPath)) {
-		engine->evaluate(trikKernel::FileUtils::readFromFile(systemJsPath));
-		if (engine->hasUncaughtException()) {
-			const int line = engine->uncaughtExceptionLineNumber();
-			const QString message = engine->uncaughtException().toString();
-			QLOG_ERROR() << "system.js: Uncaught exception at line" << line << ":" << message;
+		auto res = engine->evaluate(trikKernel::FileUtils::readFromFile(systemJsPath), systemjs);
+		if (res.isError()) {
+			auto line = res.property("lineNumber").toInt();
+			auto message = res.property("message").toString();
+			QLOG_ERROR() << systemjs << ": Uncaught exception at line" << line << ":" << message;
 		}
 	} else {
-		QLOG_ERROR() << "system.js not found, path:" << systemJsPath;
+		QLOG_ERROR() << systemjs << "not found, path:" << systemJsPath;
 	}
 
 	for (const auto &functionName : mRegisteredUserFunctions.keys()) {
-		QScriptValue functionValue = engine->newFunction(mRegisteredUserFunctions[functionName]);
+		QJSValue functionValue;// = engine->newFunction(mRegisteredUserFunctions[functionName]);
 		engine->globalObject().setProperty(functionName, functionValue);
 	}
 }

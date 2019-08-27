@@ -24,7 +24,7 @@
 
 using namespace tests;
 
-QScriptValue scriptAssert(QScriptContext *context, QScriptEngine *engine)
+QJSValue scriptAssert(QScriptContext *context, QJSEngine *engine)
 {
 	Q_UNUSED(engine);
 

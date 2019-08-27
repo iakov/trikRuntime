@@ -16,13 +16,12 @@
 
 #include <QtCore/QDateTime>
 #include <QtCore/QRegExp>
-#include <QtScript/QScriptValueIterator>
 
 using namespace trikScriptRunner;
-
-QScriptValue Utils::clone(const QScriptValue &prototype, QScriptEngine * const engine)
+/*
+QJSValue Utils::clone(const QJSValue &prototype, QJSEngine * const engine)
 {
-	QScriptValue copy;
+	QJSValue copy;
 	if (prototype.isFunction()) {
 		// Functions can not be copied across script engines, so they actually will not be copied.
 		return prototype;
@@ -30,11 +29,11 @@ QScriptValue Utils::clone(const QScriptValue &prototype, QScriptEngine * const e
 		copy = engine->newArray();
 		copy.setData(prototype.data());
 	} else if (prototype.isBool()) {
-		copy = QScriptValue(engine, prototype.toBool());
+		copy = QJSValue(engine, prototype.toBool());
 	} else if (prototype.isNumber()) {
-		copy = QScriptValue(engine, prototype.toNumber());
+		copy = QJSValue() (engine, prototype.toNumber());
 	} else if (prototype.isString()) {
-		copy = QScriptValue(engine, prototype.toString());
+		copy = QJSValue(engine, prototype.toString());
 	} else if (prototype.isRegExp()) {
 		copy = engine->newRegExp(prototype.toRegExp());
 	} else if (prototype.isDate()) {
@@ -44,7 +43,7 @@ QScriptValue Utils::clone(const QScriptValue &prototype, QScriptEngine * const e
 	} else if (prototype.isQMetaObject()) {
 		copy = engine->newQMetaObject(prototype.toQMetaObject());
 	} else if (prototype.isNull()) {
-		copy = QScriptValue();
+		copy = QJSValue();
 	} else if (prototype.isObject()) {
 		if (prototype.toString() == "[object Math]"
 				|| prototype.toString() == "[object Object]"
@@ -65,9 +64,9 @@ QScriptValue Utils::clone(const QScriptValue &prototype, QScriptEngine * const e
 	return copy;
 }
 
-bool Utils::hasProperty(const QScriptValue &object, const QString &property)
+bool Utils::hasProperty(const QJSValue &object, const QString &property)
 {
-	QScriptValueIterator iterator(object);
+	QJSValueIterator iterator(object);
 	while (iterator.hasNext()) {
 		iterator.next();
 		if (iterator.name() == property) {
@@ -78,15 +77,16 @@ bool Utils::hasProperty(const QScriptValue &object, const QString &property)
 	return false;
 }
 
-void Utils::copyRecursivelyTo(const QScriptValue &prototype, QScriptValue &target, QScriptEngine *engine)
+void Utils::copyRecursivelyTo(const QJSValue &prototype, QJSValue &target, QJSEngine *engine)
 {
-	QScriptValueIterator iterator(prototype);
+	QJSValueIterator iterator(prototype);
 	while (iterator.hasNext()) {
 		iterator.next();
-		QScriptValue const value = clone(iterator.value(), engine);
+		QJSValue const value = clone(iterator.value(), engine);
 		// Functions will not be copied to a new engine.
 		if (value.engine() == engine) {
 			target.setProperty(iterator.name(), value);
 		}
 	}
 }
+*/

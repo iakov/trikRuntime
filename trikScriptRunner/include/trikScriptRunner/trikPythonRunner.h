@@ -44,8 +44,8 @@ public:
 
 	~TrikPythonRunner() override;
 
-	void registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function) override;
-	void addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step) override;
+	void registerUserFunction(const QString &name, const std::function<QVariant> &function) override;
+	void addCustomEngineInitStep(const std::function<void (QJSEngine *)> &step) override;
 	QStringList knownMethodNames() const override;
 
 public slots:

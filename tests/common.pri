@@ -18,7 +18,7 @@ TEMPLATE = app
 
 CONFIG -= app_bundle
 
-QT += widgets
+QT += widgets qml
 
 INCLUDEPATH += \
 	$$_PRO_FILE_PWD_/ \

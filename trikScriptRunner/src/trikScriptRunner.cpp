@@ -34,12 +34,12 @@ TrikScriptRunner::~TrikScriptRunner()
 	abortAll();
 }
 
-void TrikScriptRunner::registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function)
+void TrikScriptRunner::registerUserFunction(const QString &name, const std::function<QVariant> &function)
 {
 	fetchRunner(mLastRunner)->registerUserFunction(name, function);
 }
 
-void TrikScriptRunner::addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step)
+void TrikScriptRunner::addCustomEngineInitStep(const std::function<void (QJSEngine *)> &step)
 {
 	fetchRunner(mLastRunner)->addCustomEngineInitStep(step);
 }

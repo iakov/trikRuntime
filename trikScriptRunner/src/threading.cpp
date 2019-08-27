@@ -15,7 +15,6 @@
 #include "threading.h"
 
 #include <QtCore/QEventLoop>
-#include <QtScript/QScriptValueIterator>
 #include <QJsonObject>
 
 #include "scriptEngineWorker.h"
@@ -54,12 +53,12 @@ void Threading::startMainThread(const QString &script)
 	startThread(mMainThreadName, mMainScriptEngine, needCallMain ? script + "\nmain();" : script);
 }
 
-void Threading::startThread(const QScriptValue &threadId, const QScriptValue &function)
+void Threading::startThread(const QJSValue &threadId, const QJSValue &function)
 {
 	startThread(threadId.toString(), cloneEngine(function.engine()), mScript + "\n" + function.toString() + "();");
 }
 
-void Threading::startThread(const QString &threadId, QScriptEngine *engine, const QString &script)
+void Threading::startThread(const QString &threadId, QJSEngine *engine, const QString &script)
 {
 	mResetMutex.lock();
 
@@ -156,9 +155,9 @@ void Threading::joinThread(const QString &threadId)
 	thread->wait();
 }
 
-QScriptEngine * Threading::cloneEngine(QScriptEngine *engine)
+QJSEngine * Threading::cloneEngine(QJSEngine *engine)
 {
-	QScriptEngine *result = mScriptWorker->copyScriptEngine(engine);
+	QJSEngine *result = mScriptWorker->copyScriptEngine(engine);
 	result->evaluate(mScript);
 	return result;
 }
@@ -227,7 +226,7 @@ void Threading::threadFinished(const QString &id)
 	}
 }
 
-void Threading::sendMessage(const QString &threadId, const QScriptValue &message)
+void Threading::sendMessage(const QString &threadId, const QJSValue &message)
 {
 	if (!tryLockReset()) {
 		return;
@@ -246,10 +245,10 @@ void Threading::sendMessage(const QString &threadId, const QScriptValue &message
 	mResetMutex.unlock();
 }
 
-QScriptValue Threading::receiveMessage(bool waitForMessage)
+QJSValue Threading::receiveMessage(bool waitForMessage)
 {
 	if (!tryLockReset()) {
-		return QScriptValue();
+		return QJSValue();
 	}
 
 	QString threadId = qobject_cast<ScriptThread *>(QThread::currentThread())->id();
@@ -261,7 +260,7 @@ QScriptValue Threading::receiveMessage(bool waitForMessage)
 
 	QMutex *mutex = mMessageQueueMutexes[threadId];
 	QWaitCondition *condition = mMessageQueueConditions[threadId];
-	QQueue<QScriptValue> &queue = mMessageQueues[threadId];
+	QQueue<QJSValue> &queue = mMessageQueues[threadId];
 	mMessageMutex.unlock();
 
 	mutex->lock();
@@ -269,18 +268,18 @@ QScriptValue Threading::receiveMessage(bool waitForMessage)
 		mResetMutex.unlock();
 		if (!waitForMessage) {
 			mutex->unlock();
-			return QScriptValue("");
+			return QJSValue("");
 		}
 
 		condition->wait(mutex);
 		if (!tryLockReset()) {
 			mutex->unlock();
-			return QScriptValue();
+			return QJSValue();
 		}
 	}
 
 	mutex->unlock();
-	QScriptValue result = queue.dequeue();
+	QJSValue result = queue.dequeue();
 	mResetMutex.unlock();
 	return result;
 }
