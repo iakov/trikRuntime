@@ -14,6 +14,7 @@
 
 #include "lidarWorker.h"
 
+<<<<<<< Updated upstream
 #include <QsLog.h>
 
 struct Delta2AProbe {
@@ -39,11 +40,31 @@ constexpr uint8_t PKG_HEADER_MAGIC = 0xAA;
 constexpr uint8_t PROTOCOL_VERSION = 0x01;
 constexpr uint8_t PKG_TYPE = 0x61;
 constexpr uint8_t DATA_HEADER_MAGIC = 0xAD;
+=======
+using namespace trikControl;
+
+constexpr uint8_t PKG_HEADER = 0xAA;
+constexpr int SIZE_BYTE = 1;
+
+constexpr uint8_t PROTOCOL_VERSION = 0x01;
+constexpr int PROTOCOL_BYTE = 3;
+
+constexpr uint8_t PKG_TYPE = 0x61;
+constexpr int TYPE_BYTE = 4;
+
+constexpr uint8_t DATA_HEADER = 0xAD;
+constexpr int DATA_HEADER_BYTE = 5;
+
+constexpr int DATA_SIZE_BYTE = 6;
+constexpr int START_ANGLE_BYTE = 11;
+constexpr int FIRST_DIST_BYTE = 14;
+>>>>>>> Stashed changes
 
 constexpr int ANGLES_RAW_NUMBER = 36000;
 constexpr int ANGLE_STEP = ANGLES_RAW_NUMBER / 16;
 constexpr int ANGLES_NUMBER = 360;
 
+<<<<<<< Updated upstream
 constexpr qint64 LIDAR_DATA_CHUNK_SIZE = 4096;
 
 static uint16_t get_unaligned_be16(const void *p) {
@@ -59,20 +80,37 @@ trikControl::LidarWorker::LidarWorker(const QString &fileName
 	, mState("Lidar on " + fileName)
 {
 	mState.start();
+=======
+trikControl::LidarWorker::LidarWorker(const QString &fileName
+					, const trikHal::HardwareAbstractionInterface &hardwareAbstraction)
+	: mFifoFileName(fileName)
+	, mHardwareAbstraction(hardwareAbstraction)
+	, mResult(ANGLES_RAW_NUMBER, 0)
+{
+>>>>>>> Stashed changes
 	mWaitForInit.acquire(1);
 }
 
 LidarWorker::~LidarWorker()
 {
+<<<<<<< Updated upstream
+=======
+	mFifo.reset();
+>>>>>>> Stashed changes
 }
 
 LidarWorker::Status LidarWorker::status() const
 {
+<<<<<<< Updated upstream
 	return mState.status();
+=======
+	return mFifo->status();
+>>>>>>> Stashed changes
 }
 
 void LidarWorker::init()
 {
+<<<<<<< Updated upstream
 	// TODO: refactor TRIK system config
 	// quick-and-dirty hack to avoid serial port misuse
 	if (mSerial.portName() == "ttyS1" ||
@@ -108,6 +146,10 @@ void LidarWorker::init()
 	mState.ready();
 
 	QLOG_INFO() << "Lidar: opened serial port" << mSerial.portName();
+=======
+	mFifo.reset(new Fifo(mFifoFileName, mHardwareAbstraction));
+	connect(mFifo.data(), &Fifo::newData, this, &LidarWorker::onNewData);
+>>>>>>> Stashed changes
 	mWaitForInit.release(1);
 }
 
@@ -117,7 +159,11 @@ QVector<int> LidarWorker::read() const
 	constexpr int meanWindow = ANGLES_RAW_NUMBER / ANGLES_NUMBER; // 100
 	constexpr int halfWindow = meanWindow / 2; // 50
 	for (auto i = halfWindow; i < mResult.size(); i += meanWindow) {
+<<<<<<< Updated upstream
 		result[i / meanWindow] = countMean(i, meanWindow);
+=======
+		result[(i + halfWindow) % ANGLES_RAW_NUMBER / meanWindow] = countMean(i, meanWindow);
+>>>>>>> Stashed changes
 	}
 
 	return result;
@@ -134,6 +180,7 @@ void LidarWorker::waitUntilInited()
 	mWaitForInit.release(1);
 }
 
+<<<<<<< Updated upstream
 void LidarWorker::readData()
 {
 	uint8_t bytes[256];
@@ -200,6 +247,15 @@ void LidarWorker::readData()
 			}
 		}
 	}
+=======
+void LidarWorker::onNewData(const QVector<uint8_t> &data)
+{
+	Q_UNUSED(data)
+	mBufferLock.lock();
+	mBuffer.append(mFifo->readRaw());
+	processBuffer();
+	mBufferLock.unlock();
+>>>>>>> Stashed changes
 }
 
 int LidarWorker::countMean(const int i, const int meanWindow) const
@@ -228,6 +284,7 @@ int LidarWorker::countMean(const int i, const int meanWindow) const
 	}
 }
 
+<<<<<<< Updated upstream
 void LidarWorker::processData(const void *p)
 {
 	auto data = reinterpret_cast<const struct Delta2ALayout*>(p);
@@ -255,3 +312,67 @@ bool LidarWorker::checkChecksum(const uint8_t *data, size_t size)
 	}
 	return result == get_unaligned_be16(data + size);
 }
+=======
+void LidarWorker::processBuffer()
+{
+	while (!mBuffer.isEmpty()) {
+		int startByte = 0;
+		while (mBuffer[startByte] != PKG_HEADER) {
+			startByte++;
+			if (startByte == mBuffer.size()) {
+				mBuffer.clear();
+				return;
+			}
+		}
+		if (mBuffer.size() - 1 < startByte + DATA_HEADER_BYTE + 1) {
+			mBuffer = mBuffer.mid(startByte);
+			return;
+		}
+		if (!checkProtocol(mBuffer, startByte)) {
+			mBuffer = mBuffer.mid(startByte + 1);
+			return;
+		}
+
+		uint16_t rawDataLength = (mBuffer[startByte + SIZE_BYTE] << 8) | mBuffer[startByte + SIZE_BYTE + 1];
+		if (mBuffer.size() - 1 < startByte + rawDataLength + 1) {
+			mBuffer = mBuffer.mid(startByte);
+			return;
+		}
+
+		if (checkChecksum(mBuffer, startByte, rawDataLength)) {
+			processData(mBuffer.mid(startByte, rawDataLength));
+			mBuffer = mBuffer.mid(startByte + rawDataLength);
+		}
+		else {
+			mBuffer = mBuffer.mid(startByte + 1);
+		}
+	}
+}
+
+void LidarWorker::processData(const QVector<uint8_t> &data)
+{
+	uint16_t dataLength = (data[DATA_SIZE_BYTE] << 8) | data[DATA_SIZE_BYTE + 1];
+	uint16_t startAngle = (data[START_ANGLE_BYTE] << 8) | data[START_ANGLE_BYTE + 1];
+	int readNumber = (dataLength - 5) / 3;
+	for (auto i = 0; i < readNumber; ++i) {
+		auto angle = startAngle + ANGLE_STEP * i / readNumber;
+		auto distByte = FIRST_DIST_BYTE + i * 3;
+		auto distance = ((data[distByte] << 8) + data[distByte + 1]) * 0.25;
+		mResult[angle] = distance;
+	}
+}
+
+bool LidarWorker::checkProtocol(const QVector<uint8_t> &data, uint start)
+{
+	return data[start + PROTOCOL_BYTE] == PROTOCOL_VERSION &&
+			data[start + TYPE_BYTE] == PKG_TYPE &&
+			data[start + DATA_HEADER_BYTE] == DATA_HEADER;
+}
+
+bool LidarWorker::checkChecksum(const QVector<uint8_t> &data, uint start, uint size)
+{
+	uint16_t checksum = (data[start + size] << 8) | data[start + size + 1];
+	return checksum == (std::accumulate(data.begin() + start, data.begin() + start + size, 0) & 0xffff);
+}
+
+>>>>>>> Stashed changes

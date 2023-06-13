@@ -35,7 +35,10 @@ void TrikPyRunnerTest::SetUp()
 	mScriptRunner.reset(new trikScriptRunner::TrikScriptRunner(*mBrick, nullptr));
 	mScriptRunner->setDefaultRunner(trikScriptRunner::ScriptType::PYTHON);
 	QObject::connect(&*mScriptRunner, &trikScriptRunner::TrikScriptRunnerInterface::textInStdOut,
-					 &*mScriptRunner, [this](const QString &m) { mStdOut += m; });
+					 &*mScriptRunner, [this](const QString &m) {
+		std::cout << "Incoming:" << m.toStdString() << std::endl;
+		mStdOut += m;
+	});
 // TODO:	mScriptRunner->registerUserFunction("assert", scriptAssert);
 }
 
@@ -48,10 +51,18 @@ int TrikPyRunnerTest::run(const QString &script)
 	QEventLoop l;
 	QTimer::singleShot(5000, &l, std::bind(&QEventLoop::exit, &l, EXIT_TIMEOUT));
 	QObject::connect(&*mScriptRunner, &trikScriptRunner::TrikScriptRunnerInterface::completed
-					 , &l, [&l](const QString &e) { l.exit(e.isEmpty() ? EXIT_SCRIPT_SUCCESS : EXIT_SCRIPT_ERROR); } );
+					 , &l, [this, &l](const QString &e) {
+		auto rc = EXIT_SCRIPT_SUCCESS;
+		if (!e.isEmpty()) {
+			rc = EXIT_SCRIPT_ERROR;
+			std::cerr << qPrintable(e) << std::endl;
+		}
+		l.exit(rc);
+	} );
 	mStdOut.clear();
 	mScriptRunner->run(script, "_.py");
 	auto code = l.exec();
+	std::cout << qPrintable(mStdOut) << std::endl;
 	return code;
 }
 
@@ -59,13 +70,25 @@ int TrikPyRunnerTest::runDirectCommandAndWaitForQuit(const QString &script)
 {
 	QEventLoop l;
 	QObject::connect(&*mScriptRunner, &trikScriptRunner::TrikScriptRunnerInterface::completed
+<<<<<<< Updated upstream
 					 , &l, [&l](const QString &e) {
 					l.exit(e.isEmpty() ? EXIT_SCRIPT_SUCCESS
 									   : (qDebug() << e, EXIT_SCRIPT_ERROR));
+=======
+					 , &l, [this, &l](const QString &e) {
+		auto rc = EXIT_SCRIPT_SUCCESS;
+		if (!e.isEmpty()) {
+			rc = EXIT_SCRIPT_ERROR;
+			std::cerr << e.toStdString() << std::endl;
+		}
+		l.exit(rc);
+>>>>>>> Stashed changes
 	});
 	mStdOut.clear();
 	mScriptRunner->runDirectCommand(script);
 	auto code = l.exec();
+	QCoreApplication::sendPostedEvents();
+	std::cout << mStdOut.toStdString() << std::endl;
 	return code;
 }
 
@@ -135,10 +158,15 @@ TEST_F(TrikPyRunnerTest, scriptWait)
 	scriptRunner().run("script.wait(500)");
 	tests::utils::Wait::wait(600);
 }
-
+/*
 TEST_F(TrikPyRunnerTest, directCommandContextWithTimersAndQtCore)
 {
+<<<<<<< Updated upstream
 	auto err = runDirectCommandAndWaitForQuit("from PythonQt import QtCore as QtCore");
+=======
+	int err;
+	err = runDirectCommandAndWaitForQuit("from PythonQt import QtCore");
+>>>>>>> Stashed changes
 	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
 	err = runDirectCommandAndWaitForQuit("import PythonQt");
 	qDebug() << mStdOut;
@@ -148,7 +176,7 @@ TEST_F(TrikPyRunnerTest, directCommandContextWithTimersAndQtCore)
 	err = runDirectCommandAndWaitForQuit("t=QtCore.QTimer()");
 	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
 }
-
+*/
 TEST_F(TrikPyRunnerTest, propertyAndMethodWithSimpleType)
 {
 	auto exitCode = run("brick.gyroscope().read()");

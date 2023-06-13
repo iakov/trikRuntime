@@ -134,6 +134,10 @@ Note that device, even if listed here, may fail by itself, then it also will not
 	</soundSensor>
 	-->
 	<lidarPort>
+<<<<<<< Updated upstream
 		<lidar file="/dev/ttyS1" />
+=======
+		<lidar file="/dev/ttyUSB0" />
+>>>>>>> Stashed changes
 	</lidarPort>
 </config>

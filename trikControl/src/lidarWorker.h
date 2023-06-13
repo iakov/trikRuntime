@@ -53,12 +53,17 @@ public:
 	Q_INVOKABLE QVector<int> readRaw() const;
 
 private slots:
+<<<<<<< Updated upstream
 	/// Called when there is new data on serial port
 	void readData();
+=======
+	void onNewData(const QVector<uint8_t> &data);
+>>>>>>> Stashed changes
 
 private:
 	int countMean(const int i, const int meanWindow) const;
 
+<<<<<<< Updated upstream
 	void processData(const void *p);
 
 	bool checkChecksum(const uint8_t *data, size_t size);
@@ -76,6 +81,23 @@ private:
 
 	/// device state
 	DeviceState mState;
+=======
+	void processBuffer();
+
+	void processData(const QVector<uint8_t> &data);
+
+	bool checkProtocol(const QVector<uint8_t> &data, uint start);
+	bool checkChecksum(const QVector<uint8_t> &data, uint start, uint size);
+
+	QScopedPointer<Fifo> mFifo; // Has ownership
+	const QString mFifoFileName;
+	const trikHal::HardwareAbstractionInterface &mHardwareAbstraction;
+
+	QVector<int> mResult;
+
+	QMutex mBufferLock;
+	QVector<uint8_t> mBuffer;
+>>>>>>> Stashed changes
 
 	/// Releases when init() is finished
 	QSemaphore mWaitForInit {1};
