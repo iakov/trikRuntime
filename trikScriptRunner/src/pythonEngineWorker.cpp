@@ -160,6 +160,8 @@ void PythonEngineWorker::init()
 #endif
 #endif
 		constexpr auto extractVersionCommand = "(sys.version_info.major,sys.version_info.minor)";
+		PythonQt::setEnableThreadSupport(true);
+		PythonQtGILScope _;
 		PythonQtObjectPtr dict;
 		dict.setNewRef(PyDict_New());
 		PyMapping_SetItemString(dict.object(), "sys", PyImport_ImportModule("sys"));
@@ -196,6 +198,7 @@ void PythonEngineWorker::init()
 		PythonQt_QtAll::init();
 	}
 	if (!mMainContext) {
+		PythonQtGILScope _;
 		mMainContext = PythonQt::self()->getMainModule();
 		recreateContext();
 	}
