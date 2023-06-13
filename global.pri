@@ -132,7 +132,7 @@ equals(TEMPLATE, app) {
 }
 
 #Workaround for a known gcc/ld (before 7.3/bionic) issue
-use_gold_linker:!clang: QMAKE_LFLAGS += -Wl,--disable-new-dtags
+#use_gold_linker:!clang: QMAKE_LFLAGS += -Wl,--disable-new-dtags
 
 macx-clang {
 #	QMAKE_MACOSX_DEPLOYMENT_TARGET=10.12

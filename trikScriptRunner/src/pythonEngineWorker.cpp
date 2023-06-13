@@ -56,6 +56,10 @@ PythonEngineWorker::PythonEngineWorker(trikControl::BrickInterface *brick
 
 PythonEngineWorker::~PythonEngineWorker()
 {
+	if(thread() != QThread::currentThread()) {
+		QLOG_FATAL() << "~PythonEngineWorker threading issue";
+	}
+
 	stopScript();
 	{
 		// In python at least before 3.7 (3.5,3.6)
