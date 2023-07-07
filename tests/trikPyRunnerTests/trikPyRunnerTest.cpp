@@ -51,7 +51,7 @@ int TrikPyRunnerTest::run(const QString &script)
 	QEventLoop l;
 	QTimer::singleShot(5000, &l, std::bind(&QEventLoop::exit, &l, EXIT_TIMEOUT));
 	QObject::connect(&*mScriptRunner, &trikScriptRunner::TrikScriptRunnerInterface::completed
-					 , &l, [this, &l](const QString &e) {
+					 , &l, [&l](const QString &e) {
 		auto rc = EXIT_SCRIPT_SUCCESS;
 		if (!e.isEmpty()) {
 			rc = EXIT_SCRIPT_ERROR;
@@ -152,6 +152,12 @@ TEST_F(TrikPyRunnerTest, scriptWait)
 TEST_F(TrikPyRunnerTest, directCommandContextWithTimersAndQtCore)
 {
 	auto err = runDirectCommandAndWaitForQuit("from PythonQt import QtCore as QtCore");
+	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
+	err = runDirectCommandAndWaitForQuit("import PythonQt");
+	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
+	err = runDirectCommandAndWaitForQuit("print(dir(PythonQt))");
+	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
+	err = runDirectCommandAndWaitForQuit("print(dir(QtCore))");
 	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
 	err = runDirectCommandAndWaitForQuit("import PythonQt");
 	qDebug() << mStdOut;
