@@ -83,7 +83,7 @@ TRANSLATIONS = \
 	$$PWD/../translations/ru/trikScriptRunner_ru.ts \
 	$$PWD/../translations/fr/trikScriptRunner_fr.ts \
 
-QT += script network
+QT += network
 
 DEFINES += TRIKSCRIPTRUNNER_LIBRARY
 trik_nopython:DEFINES += TRIK_NOPYTHON
