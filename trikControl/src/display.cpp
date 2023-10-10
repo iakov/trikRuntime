@@ -17,11 +17,7 @@
 #include <QtCore/QFileInfo>
 #include <qglobal.h>
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-	#include <QtGui/QApplication>
-#else
-	#include <QtWidgets/QApplication>
-#endif
+#include <QtWidgets/QApplication>
 
 #include <QsLog.h>
 

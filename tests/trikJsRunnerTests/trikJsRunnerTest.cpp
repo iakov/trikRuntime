@@ -27,18 +27,30 @@
 using namespace tests;
 constexpr auto EXIT_SCRIPT_SUCCESS = EXIT_SUCCESS;
 
-QScriptValue scriptAssert(QScriptContext *context, QScriptEngine *engine)
+QJSValue scriptAssert(QJSValue args)
 {
+	QJSEngine *engine = new QJSEngine();
 	Q_UNUSED(engine)
 
-	if (context->argumentCount() != 1) {
+	QJSValueList context;
+	auto length = args.property("length");
+	if(length.isNumber()){
+		for(int i = 0, intLength = length.toInt(); i < intLength; ++i){
+			context << args.property(static_cast<quint32>(i));
+		}
+	} else if(!args.isUndefined()){
+		context << args;
+	}
+
+	if (context.count() != 1) {
 		ADD_FAILURE() << "'assert' shall have exactly one argument";
 		return {};
 	}
 
-	if (!context->argument(0).toBool()) {
-		ADD_FAILURE() << "Assertion failure at\n"
-				<< QStringList(context->backtrace().mid(1)).join("\n").toStdString();
+	if (!context.value(0).toBool()) {
+		ADD_FAILURE() << "Assertion failure at\n";
+//				<< QStringList(context->backtrace().mid(1)).join("\n").toStdString();
+
 	}
 
 	return {};
@@ -49,7 +61,7 @@ void TrikJsRunnerTest::SetUp()
 	mBrick.reset(trikControl::BrickFactory::create("./test-system-config.xml"
 					, "./test-model-config.xml", "./media"));
 	mScriptRunner.reset(new trikScriptRunner::TrikScriptRunner(*mBrick, nullptr));
-	mScriptRunner->registerUserFunction("assert", scriptAssert);
+	//mScriptRunner->registerUserFunction("assert", scriptAssert);
 	QObject::connect(mScriptRunner.data(), &trikScriptRunner::TrikScriptRunnerInterface::textInStdOut,
 					 mScriptRunner.data(), [this](const QString &m) { mStdOut += m; });
 }
