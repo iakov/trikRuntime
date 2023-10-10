@@ -61,7 +61,7 @@ void TrikJsRunnerTest::SetUp()
 	mBrick.reset(trikControl::BrickFactory::create("./test-system-config.xml"
 					, "./test-model-config.xml", "./media"));
 	mScriptRunner.reset(new trikScriptRunner::TrikScriptRunner(*mBrick, nullptr));
-	//mScriptRunner->registerUserFunction("assert", scriptAssert);
+	mScriptRunner->registerUserFunction("assert", scriptAssert);
 	QObject::connect(mScriptRunner.data(), &trikScriptRunner::TrikScriptRunnerInterface::textInStdOut,
 					 mScriptRunner.data(), [this](const QString &m) { mStdOut += m; });
 }
@@ -154,10 +154,18 @@ TEST_F(TrikJsRunnerTest, twoProgramsTest)
 	tests::utils::Wait::wait(600);
 }
 
-TEST_F(TrikJsRunnerTest, printTest)
+TEST_F(TrikJsRunnerTest, printTestHello)
 {
 	const QString text = "Hello";
 	auto err = runDirectCommandAndWaitForQuit("print('" + text + "');script.quit();");
+	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
+	ASSERT_EQ(text + '\n', mStdOut);
+}
+
+TEST_F(TrikJsRunnerTest, printTestFour)
+{
+	const QString text = "4";
+	auto err = runDirectCommandAndWaitForQuit("print(4);script.quit();");
 	ASSERT_EQ(err, EXIT_SCRIPT_SUCCESS);
 	ASSERT_EQ(text + '\n', mStdOut);
 }

@@ -146,7 +146,7 @@ void Threading::joinThread(const QString &threadId)
 QJSEngine * Threading::cloneEngine(QJSEngine *engine)
 {
 	QJSEngine *result = mScriptWorker->copyScriptEngine(engine);
-	result->evaluate(mScript);
+	QJSValue evaluationResult = ScriptEngineWorker::evaluateScriptByDot(result, mScript);
 	return result;
 }
 

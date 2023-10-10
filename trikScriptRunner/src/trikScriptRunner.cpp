@@ -53,8 +53,8 @@ TrikScriptRunner::TrikScriptRunner(trikControl::BrickInterface &brick
 }
 
 TrikScriptRunner::TrikScriptRunner(trikControl::BrickInterface &brick
-								   , trikNetwork::MailboxInterface * const mailbox
-								   )
+				   , trikNetwork::MailboxInterface * const mailbox
+				   )
 	: TrikScriptRunner(brick, mailbox, QSharedPointer<ScriptExecutionControl>(new ScriptExecutionControl(&brick)))
 {
 	mScriptControl->setParent(this);

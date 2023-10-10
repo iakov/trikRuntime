@@ -119,8 +119,8 @@ ScriptEngineWorker::ScriptEngineWorker(trikControl::BrickInterface *brick
 	connect(this, &ScriptEngineWorker::getVariables, &mThreading, &Threading::getVariables);
 	connect(&mThreading, &Threading::variablesReady, this, &ScriptEngineWorker::variablesReady);
 
-	//registerUserFunction("print", print);
-	//registerUserFunction("include", include);
+	registerUserFunction("print", print);
+	registerUserFunction("include", include);
 }
 
 void ScriptEngineWorker::brickBeep()
@@ -251,7 +251,7 @@ void ScriptEngineWorker::doRunDirect(const QString &command, int scriptId)
 	}
 
 	if (mDirectScriptsEngine) {
-		QJSValue result = mDirectScriptsEngine->evaluate(command);
+		QJSValue result = evaluateScriptByDot(&(*mDirectScriptsEngine), command);
 
 		/// If script was stopped by quit(), engine will already be reset to nullptr in ScriptEngineWorker::stopScript.
 		QString msg;
@@ -275,7 +275,7 @@ void ScriptEngineWorker::startScriptEvaluation(int scriptId)
 void ScriptEngineWorker::evalExternalFile(const QString & filepath, QJSEngine * const engine)
 {
 	if (QFileInfo::exists(filepath)) {
-		QJSValue result = engine->evaluate(trikKernel::FileUtils::readFromFile(filepath), filepath);
+		QJSValue result = evaluateScriptByDot(filepath, engine);
 		if (result.isError()) {
 			const auto line = result.property("lineNumber").toInt();
 			const auto &message = result.property("message").toString();
@@ -399,13 +399,12 @@ void ScriptEngineWorker::evalSystemJs(QJSEngine * const engine)
 	const QString systemJsPath = trikKernel::Paths::systemScriptsPath() + "system.js";
 	evalExternalFile(systemJsPath, engine);
 
-	for (auto &&functionName : mRegisteredUserFunctions.keys()) {
-
-	}
+	//for (auto &&functionName : mRegisteredUserFunctions.keys()) {}
 
 	const auto &functionWrapper = engine->newQObject(new UserFunctionWrapper(engine));
 	//const auto &functionValue = functionWrapper->getUserFunctionValue();
 	engine->globalObject().setProperty("print", functionWrapper.property("print"));
+	engine->globalObject().setProperty("include", functionWrapper.property("include"));
 
 	if (QJSEngine::objectOwnership(mBrick) == QJSEngine::JavaScriptOwnership){
 		QJSEngine::setObjectOwnership(mBrick, QJSEngine::CppOwnership);
@@ -444,4 +443,75 @@ QJSValueList ScriptEngineWorker::toJSValueList(QJSValue arg)
 	list << arg;
     }
     return list;
+}
+
+QJSValue ScriptEngineWorker::evaluateScriptByDot(QJSEngine * const engine, const QString &script)
+{
+	QJSValue result;
+	QStringList scripts = script.split(u';');
+
+	for (int i = 0; i < scripts.length(); ++i){
+		if (scripts[i].contains("print")){
+			scripts[i].replace("print", "").chop(1);
+			scripts[i] = scripts[i].mid(1);
+		}
+
+		QStringList words = scripts[i].split(u'.');
+		QString command;
+		foreach(QString word, words){
+			command.append(word);
+			result = engine->evaluate(command);
+
+			auto resultQObject = result.toQObject();
+			if (resultQObject != nullptr){
+				if (QJSEngine::objectOwnership(resultQObject) == QJSEngine::JavaScriptOwnership){
+					QJSEngine::setObjectOwnership(resultQObject, QJSEngine::CppOwnership);
+				}
+			}
+			command.append('.');
+		}
+
+	}
+
+	result = engine->evaluate(script);
+
+	return result;
+}
+
+QJSValue ScriptEngineWorker::evaluateScriptByDot(const QString & filepath, QJSEngine * const engine)
+{
+	QJSValue result;
+	QString script = trikKernel::FileUtils::readFromFile(filepath);
+	QStringList scripts = script.split(u';');
+
+	if (QFileInfo::exists(filepath)) {
+		for (int i = 0; i < scripts.length(); ++i){
+			if (scripts[i].contains("print")){
+				scripts[i].replace("print", "").chop(1);
+				scripts[i] = scripts[i].mid(1);
+			}
+
+			QStringList words = scripts[i].split(u'.');
+			QString command;
+
+			foreach(QString word, words){
+				command.append(word);
+				result = engine->evaluate(command, filepath);
+
+				auto resultQObject = result.toQObject();
+				if (resultQObject != nullptr){
+					if (QJSEngine::objectOwnership(resultQObject) == QJSEngine::JavaScriptOwnership){
+						QJSEngine::setObjectOwnership(resultQObject, QJSEngine::CppOwnership);
+					}
+				}
+
+				command.append('.');
+			}
+		}
+		result = engine->evaluate(script);
+	} else {
+		QLOG_ERROR() << "File not found, path:" << filepath;
+	}
+
+	return result;
 }

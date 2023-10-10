@@ -82,6 +82,14 @@ public:
 	/// Helper that converts QJSValue, contained array to QJSValueList
 	static QJSValueList toJSValueList(QJSValue arg);
 
+	/// Evaluates script separated by dot
+	/// If a QObject returned as an evaluation result, ownership sets to C++
+	static QJSValue evaluateScriptByDot(QJSEngine * const engine, const QString &script);
+
+	/// Evaluates script separated by dot
+	/// If a QObject returned as an evaluation result, ownership sets to C++
+	static QJSValue evaluateScriptByDot(const QString & filepath, QJSEngine * const engine);
+
 signals:
 	/// Emitted when current script execution is completed or is aborted by reset() call.
 	/// @param error - localized error message or empty string.

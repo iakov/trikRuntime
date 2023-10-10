@@ -13,6 +13,7 @@
  * limitations under the License. */
 
 #include "scriptThread.h"
+#include "scriptEngineWorker.h"
 
 #include <QtCore/QEventLoop>
 #include <QtCore/QDateTime>
@@ -44,14 +45,7 @@ void ScriptThread::run()
 
 	//QRandomGenerator::global()->seed(QDateTime::currentMSecsSinceEpoch());
 
-	QJSValue result = mEngine->evaluate(mScript);
-
-	auto resultQObject = result.toQObject();
-	if (resultQObject != nullptr){
-		if (QJSEngine::objectOwnership(resultQObject) == QJSEngine::JavaScriptOwnership){
-			QJSEngine::setObjectOwnership(resultQObject, QJSEngine::CppOwnership);
-		}
-	}
+	QJSValue result = ScriptEngineWorker::evaluateScriptByDot(&(*mEngine), mScript);
 
 	if (result.isError()) {
 		const auto line = result.property("lineNumber").toInt();
