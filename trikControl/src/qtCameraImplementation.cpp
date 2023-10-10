@@ -62,11 +62,11 @@ QVector<uint8_t> QtCameraImplementation::getPhoto()
 	if(!mCamera)
 		return QVector<uint8_t>();
 
-	QScopedPointer<QCameraImageCapture> imageCapture (new QCameraImageCapture(mCamera.data()));
+	QScopedPointer<QCameraImageCapture> imageCapture (new QImageCameraCapture(mCamera));
 
 	imageCapture->setCaptureDestination(QCameraImageCapture::CaptureToBuffer);
 
-	const auto & formats = imageCapture->supportedBufferFormats();
+	const auto & formats = imageCapture->supportedFormats();
 	QLOG_INFO() << "Supported buffer formats: " << formats;
 
 	auto camera = mCamera.data();

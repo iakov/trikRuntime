@@ -17,6 +17,8 @@
 
 using namespace trikScriptRunner;
 
+constexpr auto scriptEngineWorkerName = "__scriptEngineWorker";
+
 UserFunctionWrapper::UserFunctionWrapper(QJSEngine * engine)
 	: mEngine(engine) {}
 
@@ -28,6 +30,22 @@ QJSValue UserFunctionWrapper::getUserFunctionValue()
 	userFunctionValue = engine->evaluate("function(){ return this.userFunction(); }");
 
 	return userFunctionValue;
+}
+
+QJSValue UserFunctionWrapper::include(QJSValue args)
+{
+	QJSValueList context = ScriptEngineWorker::toJSValueList(args);
+	const auto &filename = context.value(0).toString();
+
+	const auto & scriptValue = mEngine->globalObject().property(scriptEngineWorkerName);
+	if (auto scriptWorkerValue = qobject_cast<ScriptEngineWorker *> (scriptValue.toQObject())) {
+		auto connection = (QThread::currentThread() != mEngine->thread()) ?
+					Qt::BlockingQueuedConnection : Qt::DirectConnection;
+		QMetaObject::invokeMethod(scriptWorkerValue, [scriptWorkerValue, filename, this]()
+					{scriptWorkerValue->evalInclude(filename, mEngine);}, connection);
+	}
+
+	return QJSValue();
 }
 
 QJSValue UserFunctionWrapper::print(QJSValue arg)

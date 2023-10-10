@@ -119,7 +119,7 @@ private:
 	TrikScriptControlInterface * const mScriptControl {}; // Doesn't have ownership.
 	QString mScript;
 
-	QJSEngine *mMainScriptEngine; // Doesn't have ownership.
+	QJSEngine *mMainScriptEngine {}; // Doesn't have ownership.
 	const QString mMainThreadName = "main";
 };
 

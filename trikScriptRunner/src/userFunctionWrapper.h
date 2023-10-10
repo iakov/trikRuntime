@@ -19,6 +19,8 @@ public:
 
 	Q_INVOKABLE TrikScriptRunnerInterface::script_function_type userFunction;
 
+	Q_INVOKABLE QJSValue include(QJSValue args);
+
 	Q_INVOKABLE QJSValue print(QJSValue args);
 
 	QJSValue userFunctionValue;

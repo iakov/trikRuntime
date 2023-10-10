@@ -47,16 +47,16 @@ void ScriptThread::run()
 	QJSValue result = mEngine->evaluate(mScript);
 
 	auto resultQObject = result.toQObject();
-		if (resultQObject != nullptr){
-			if (QJSEngine::objectOwnership(resultQObject) == QJSEngine::JavaScriptOwnership){
-				QJSEngine::setObjectOwnership(resultQObject, QJSEngine::CppOwnership);
-			}
+	if (resultQObject != nullptr){
+		if (QJSEngine::objectOwnership(resultQObject) == QJSEngine::JavaScriptOwnership){
+			QJSEngine::setObjectOwnership(resultQObject, QJSEngine::CppOwnership);
 		}
+	}
 
-		if (result.isError()) {
-			const auto line = result.property("lineNumber").toInt();
-			const auto &message = result.property("message").toString();
-			const auto &backtrace = result.property("stack").toString();
+	if (result.isError()) {
+		const auto line = result.property("lineNumber").toInt();
+		const auto &message = result.property("message").toString();
+		const auto &backtrace = result.property("stack").toString();
 		mError = tr("Line %1: %2").arg(QString::number(line), message);
 		if (!backtrace.isEmpty()) {
 			mError += "\n" + backtrace;
