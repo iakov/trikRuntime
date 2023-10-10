@@ -66,7 +66,7 @@ jobs:
           fetch-depth: 1
 
       - name: QMake
-        run: 'qmake trikRuntime.pro -spec linux-g++ CONFIG-=qml_debug CONFIG+=trik_nopython CONFIG+=ccache CONFIG+=noPch CONFIG+=tests CONFIG+=sanitizer CONFIG+=sanitize_undefined CONFIG+=c++17 CONFIG+=release'
+        run: 'qmake trikRuntime.pro -spec linux-g++ CONFIG-=qml_debug CONFIG+=trik_nopython CONFIG+=noPch CONFIG+=tests CONFIG+=sanitizer CONFIG+=sanitize_undefined CONFIG+=c++17 CONFIG+=release'
 
       - name: QMake all
         timeout-minutes: 1
