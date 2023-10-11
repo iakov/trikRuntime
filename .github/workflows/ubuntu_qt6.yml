@@ -67,7 +67,8 @@ jobs:
       - name: Update submodule locally
         run: |
             cd /home/runner/work/trikRuntime/trikRuntime/qslog/qslog
-            git checkout d8b3033cf497c09429ca99f9bf1920eb72f7ff3e
+            cp /home/runner/work/trikRuntime/trikRuntime/filesToChange/* .
+            cd ../..
         working-directory: /home/runner/work/trikRuntime/trikRuntime
 
       - name: QMake
