@@ -1,4 +1,4 @@
-name: 'No Python on CentOS 7'
+name: 'Qt SDK on CentOS 7'
 on:
   push:
     branches:
@@ -16,14 +16,18 @@ jobs:
       run:
         shell: bash -l {0} # to force import of ~/.bash_profile
     strategy:
+      fail-fast: false
       matrix:
-        nopython: ['nopython', '']
-        qjsengine: [''] # add 'qjsengine' for CONFIG+=trik_use_qjsengine
-        qt-version: ['5.12']
         gcc-version: ['11']
+        nopython: [null, 'trik_nopython']
+        qjsengine: [null, 'trik_use_qjsengine']
+        include:
+          - qt-version: '5.12'
+          - qt-version: '5.15'
+            qjsengine: 'trik_use_qjsengine'
+
 
     steps:
-
       - name: Cancel Previous Workflow Runs
         uses: n1hility/cancel-previous-runs@v3.0
         with:
@@ -33,7 +37,7 @@ jobs:
         run: |
           yum install -y epel-release centos-release-scl
           yum install -y libusbx-devel curl wget devtoolset-${{ matrix.gcc-version }}-{gcc-c++,make,libasan-devel,libubsan-devel} \
-                         rh-git227-git-core ccache rsync rh-python38-python-{${{ matrix.nopython == 'nopython' && '' || 'devel,' }}pip,urllib3} \
+                         rh-git227-git-core ccache rsync rh-python38-python-{${{ matrix.nopython && '' || 'devel,' }}pip,urllib3} \
                          mesa-libGL-devel systemd-devel fontconfig which
 
           # yum install -y libxkbcommon-x11 qt5-qtbase-gui #no desire to enumerate all required libraries for QtIFw
@@ -64,7 +68,7 @@ jobs:
             python3 -m pip install -U pip
             python3 -m pip install aqtinstall
             aqt install-qt linux desktop ${{ matrix.qt-version }} -O /Qt \
-            --archives qtbase qtmultimedia qtsvg qttools qtserialport qtimageformats icu qtwayland ${{ matrix.qjsengine == 'qjsengine' && 'qtdeclarative' || '-m qtscript' }}
+            --archives qtbase qtmultimedia qtsvg qttools qtserialport qtimageformats icu qtwayland ${{ matrix.qjsengine && 'qtdeclarative' || '-m qtscript' }}
             Qt5_Dir=$(ls -1d /Qt/5*/* | head -n 1)
             echo "Qt5_Dir=${Qt5_Dir}" >> $GITHUB_ENV
             echo "${Qt5_Dir}/bin" >> $GITHUB_PATH
@@ -87,9 +91,11 @@ jobs:
       - name: QMake
         timeout-minutes: 1
         run: |
-            qmake CONFIG+=release CONFIG+=${{ matrix.nopython == 'nopython' && 'trik_nopython' || '' }} \
+            qmake CONFIG+=release CONFIG+=${{ matrix.nopython || '' }} \
                   CONFIG+=tests CONFIG+=noPch CONFIG+=ccache CONFIG+=sanitizer \
-                  CONFIG+=sanitize_undefined CONFIG+=${{ matrix.qjsengine == 'qjsengine' && 'trik_use_qjsengine' || '' }} \
+                  CONFIG+=sanitize_undefined CONFIG+=${{ matrix.qjsengine || '' }} \
+                  PYTHON_VERSION=3.8 \
+                  PYTHON_DIR=$(which python3 | xargs dirname | xargs dirname) \
                   "$GITHUB_WORKSPACE/"
 
       - name: QMake all
