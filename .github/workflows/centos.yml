@@ -1,4 +1,4 @@
-name: 'No Python on CentOS 7'
+name: 'Qt SDK on CentOS 7'
 on:
   push:
     branches:
@@ -14,11 +14,20 @@ jobs:
       run:
         shell: bash -l {0} # to force import of ~/.bash_profile
     strategy:
+      fail-fast: false
       matrix:
-        nopython: ['nopython', '']
-        qjsengine: [''] # add 'qjsengine' for CONFIG+=trik_use_qjsengine
-        qt-version: ['5.12']
+        qt-version: ['5.12', '5.15']
         gcc-version: ['11']
+        include:
+          - qt-version: '5.15'
+            qjsengine: 'qjsengine'
+          - qt-version: '5.12'
+            qjsengine: ''
+          - qt-version: '5.12'
+            qjsengine: 'qjsengine'
+          - qt-version: '5.15'
+            nopython: 'nopython'
+
 
     steps:
 
