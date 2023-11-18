@@ -97,6 +97,7 @@ jobs:
             mkdir build-brick
             cd build-brick
             qmake CONFIG+=release CONFIG+=noPch CONFIG+=ccache \
+                  PYTHON_VERSION=$(pkg-config --modversion python3) PKGCONFIG+=python3 \
                   "$GITHUB_WORKSPACE/"
 
       - name: "[TRIK brick] QMake all"
