@@ -24,7 +24,7 @@ copyToDestdir($$OTHER_FILES)
 
 implementationIncludes(trikKernel trikControl trikScriptRunner trikNetwork)
 PythonQtIncludes()
-links(trikQsLog trikKernel trikControl trikScriptRunner trikNetwork)
+links(trikRuntimeQsLog trikKernel trikControl trikScriptRunner trikNetwork)
 
 
 TEMPLATE = app
@@ -35,9 +35,5 @@ QT += gui
 if (equals(QT_MAJOR_VERSION, 5)) {
 	QT += widgets
 }
-
-TRANSLATIONS = \
-	$$PWD/../translations/ru/trikRun_ru.ts \
-	$$PWD/../translations/fr/trikRun_fr.ts \
 
 installs()

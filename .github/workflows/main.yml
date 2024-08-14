@@ -2,37 +2,34 @@ name: GHA CI
 on:
   push:
     branches:
+    - '**'
   pull_request:
     branches:
+    - '**'
   workflow_dispatch:
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        qt-version: ['5.15.2']
         include:
-#          - qt-version: '5.10.1'
-#            mingw-version: 5.3
-#            mingw-short-version: 53
-#            python-version: 3.5
-          - qt-version: '5.12.11'
+          - qt-version: '5.12'
             mingw-version: 7.3
             mingw-short-version: 73
             python-version: 3.8
-          - qt-version: '5.15.2'
-            mingw-version: 8.1
-            mingw-short-version: 81
-            python-version: 3.8
+#          - qt-version: '5.12'
+#            mingw-version: 8.1
+#            mingw-short-version: 81
+#            python-version: '3.10'
     defaults:
       run:
         shell: pwsh #to prevent unexpected Git Bash with wrong MSys DLLs
     steps:
 
       - name: Cancel Previous Workflow Runs
-        uses: n1hility/cancel-previous-runs@v2.0
+        uses: n1hility/cancel-previous-runs@v3.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -42,7 +39,7 @@ jobs:
             git config --global core.symlinks true
             git config --global core.autocrlf true
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 1
@@ -81,17 +78,18 @@ jobs:
         shell: msys2 {0}
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v2
+        uses: jurplel/install-qt-action@v4
         with:
           version: ${{matrix.qt-version}}
           arch: win32_mingw${{matrix.mingw-short-version}}
-          modules: 'qtscript qtsvg'
-          tools: 'tools_mingw,${{matrix.mingw-version}}.0,qt.tools.win32_mingw${{matrix.mingw-short-version}}0'
+          modules: 'qtscript'
+          archives: 'qtbase qtsvg qtserialport qtmultimedia qtwinextras qtimageformats i686 qttools qtdeclarative qtquickcontrols2'
+          tools: 'tools_mingw,qt.tools.win32_mingw${{matrix.mingw-short-version}}0'
           extra: '--external 7z'
 
 # After Qt install action, that spoils pythonLocation variable
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x86'
@@ -104,7 +102,7 @@ jobs:
              cygpath -w /mingw32/bin >> $GITHUB_PATH
              cygpath -w "${IQTA_TOOLS}/mingw${{matrix.mingw-short-version}}0_32/bin" >> $GITHUB_PATH
              cygpath -w "${pythonLocation}" >> $GITHUB_PATH
-             cygpath -w "${Qt5_Dir}/bin" >> $GITHUB_PATH
+             cygpath -w "${QT_ROOT_DIR}/bin" >> $GITHUB_PATH
 
       - name: Check PATH
         shell: msys2 {0}
@@ -125,12 +123,12 @@ jobs:
              which rsync && rsync --version
              which python3 && python3 --version
              which g++ && g++ --version
-             ls "$IQTA_TOOLS/" "$Qt5_Dir/"
+             ls "$IQTA_TOOLS/" "$QT_ROOT_DIR/"
              which qmake && qmake --version
 
       - name: QMake
         shell: msys2 {0}
-        run: 'qmake trikRuntime.pro -spec win32-g++ CONFIG+=tests CONFIG+=release PYTHON_PATH="${pythonLocation}"'
+        run: 'qmake trikRuntime.pro -spec win32-g++ CONFIG+=trik_not_brick CONFIG+=tests CONFIG+=release PYTHON_PATH="${pythonLocation}" CONFIG+=force_debug_info CONFIG+=sanitizer CONFIG+=sanitize_undefined'
 
       - name: QMake all
         shell: msys2 {0}
@@ -143,6 +141,7 @@ jobs:
         run: mingw32-make -j $(nproc) all
 
       - name: Tests
+        id: tests
         shell: msys2 {0}
         timeout-minutes: 3
         continue-on-error: true
@@ -153,7 +152,7 @@ jobs:
           mingw32-make check -k
 
       - name: Prepare for RDP connection
-        continue-on-error: true
+        if: false
         shell: pwsh
         env:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
@@ -162,8 +161,14 @@ jobs:
             Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
             Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
             Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
-#            Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-#            Expand-Archive ngrok.zip
-#            .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-#            choco install far dependencies
-#           .\ngrok\ngrok.exe tcp 3389
+            Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+            Expand-Archive ngrok.zip
+            .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
+            choco install far dependencies
+            .\ngrok\ngrok.exe tcp 3389
+
+      - name: Check errors
+        if: ${{ steps.tests.outcome == 'failure' }}
+        run: |
+            echo Errors occurred in the step Tests
+            exit 1

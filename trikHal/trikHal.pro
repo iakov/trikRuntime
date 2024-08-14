@@ -82,7 +82,7 @@ SOURCES += \
 	$$PWD/src/stub/stubFifo.cpp \
 	$$PWD/src/stub/stubIIOFile.cpp \
 
-equals(ARCHITECTURE, arm) {
+!trik_not_brick {
 	SOURCES += $$PWD/src/trik/hardwareAbstractionFactory.cpp
 } else {
 	SOURCES += $$PWD/src/stub/hardwareAbstractionFactory.cpp
@@ -90,7 +90,7 @@ equals(ARCHITECTURE, arm) {
 
 DEFINES += TRIKHAL_LIBRARY
 
-links(trikQsLog trikKernel)
+links(trikRuntimeQsLog trikKernel)
 implementationIncludes(trikKernel)
 
 if (equals(QT_MAJOR_VERSION, 5)) {

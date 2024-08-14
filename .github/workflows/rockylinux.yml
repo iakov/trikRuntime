@@ -1,0 +1,112 @@
+name: 'Linux Build'
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  rockylinux9:
+    runs-on: ubuntu-latest
+    container: rockylinux:9
+    defaults:
+      run:
+        shell: bash -l {0} # to force import of ~/.bash_profile
+    strategy:
+      matrix:
+        nopython: ['nopython', '']
+        qjsengine: [''] # add 'qjsengine' for CONFIG+=trik_use_qjsengine
+        qt-version: ['5.12']
+        gcc-version: ['13']
+
+    steps:
+
+      - name: Cancel Previous Workflow Runs
+        uses: n1hility/cancel-previous-runs@v3.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install packages
+        run: |
+          yum install -y epel-release
+          yum install -y --allowerasing libusbx-devel curl wget make gcc-toolset-${{ matrix.gcc-version }}-{gcc-c++,libasan-devel,libubsan-devel} \
+                         git-core ccache rsync python3-{${{ matrix.nopython == 'nopython' && '' || 'devel,' }}pip,urllib3} \
+                         mesa-libGL-devel systemd-devel fontconfig which
+
+          # yum install -y libxkbcommon-x11 qt5-qtbase-gui #no desire to enumerate all required libraries for QtIFw
+          yum install -y pulseaudio-libs-glib2 # to run TS and 2D-model even with `minimal` platform
+
+          echo "source scl_source enable gcc-toolset-${{ matrix.gcc-version }}" >> ~/.bash_profile
+
+      - name: Configure git
+        run: |
+            git --version
+            git config --global core.symlinks true
+            git config --global core.autocrlf false
+
+            #prepare for actions/checkout, otherwise it fails
+            echo "LC_ALL=C.UTF-8" >> $GITHUB_ENV
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Install Qt
+        run: |
+            python3 -m pip install -U pip
+            python3 -m pip install aqtinstall
+            aqt install-qt linux desktop ${{ matrix.qt-version }} -O /Qt \
+            --archives qtbase qtmultimedia qtsvg qttools qtserialport qtimageformats icu qtwayland qtdeclarative qtquickcontrols2 ${{ matrix.qjsengine == 'qjsengine' && 'qtdeclarative' || '-m qtscript' }}
+            QT_ROOT_DIR=$(ls -1d /Qt/5*/* | head -n 1)
+            echo "QT_ROOT_DIR=${QT_ROOT_DIR}" >> $GITHUB_ENV
+            echo "${QT_ROOT_DIR}/bin" >> $GITHUB_PATH
+
+      - name: Use ccache
+        uses: hendrikmuhs/ccache-action@v1.2.11
+
+      - name: Check available tools
+        run: |
+             set -xueo pipefail
+             uname -a
+             rsync --version
+             ls "$QT_ROOT_DIR/"
+             qmake --version && qmake -query
+             python3 --version
+             which g++
+             g++ --version
+             ccache --version
+
+      - name: QMake
+        timeout-minutes: 1
+        run: |
+            qmake CONFIG+=release CONFIG+=trik_not_brick CONFIG+=${{ matrix.nopython == 'nopython' && 'trik_nopython' || '' }} \
+                  CONFIG+=tests CONFIG+=ccache CONFIG+=sanitizer \
+                  CONFIG+=sanitize_undefined CONFIG+=${{ matrix.qjsengine == 'qjsengine' && 'trik_use_qjsengine' || '' }} \
+                  "$GITHUB_WORKSPACE/"
+
+      - name: QMake all
+        timeout-minutes: 3
+        run: |
+            make -j $(nproc) qmake_all
+
+      - name: Make all
+        timeout-minutes: 10
+        run: |
+            make -j $(nproc) all
+
+      - name: Unit tests
+        timeout-minutes: 5
+        run: |
+            export TRIK_PYTHONPATH=$(python3 -c "import sys; import os; print(os.pathsep.join(sys.path))")
+            export PYTHONVERBOSE=2
+            export PYTHONDEBUG=2
+            export PYTHONMALLOC=malloc_debug
+            export PYTHONFAULTHANDLER=1
+            export PYTHONDEVMODE=1 #only from 3.7, overrides PYTHONMALLOC and some other
+            env | sort
+            make -k check TESTARGS="-platform offscreen"

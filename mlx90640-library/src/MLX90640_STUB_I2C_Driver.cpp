@@ -1,4 +1,4 @@
-/* Copyright 2016 CyberTech Labs Ltd.
+/* Copyright 2023-2024 Nick Ponomarev, Vladimir Kutuev
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,12 +11,31 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License. */
+#include "MLX90640_I2C_Driver.h"
 
-#include "powerLevel.h"
-
-using namespace trikGui;
-
-PowerLevel::Level PowerLevel::currentLevel()
+void MLX90640_I2CInit()
 {
-	return Level::twelveVolt;
 }
+
+int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data)
+{
+	(void)slaveAddr;
+	(void)startAddress;
+	(void)nMemAddressRead;
+	(void)data;
+	return 0;
+}
+
+void MLX90640_I2CFreqSet(int freq)
+{
+	(void)freq;
+}
+
+int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
+{
+	(void)slaveAddr;
+	(void)writeAddress;
+	(void)data;
+	return 0;
+}
+

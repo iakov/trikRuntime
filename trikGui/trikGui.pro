@@ -63,7 +63,8 @@ HEADERS += \
 	$$PWD/accelerometerWidget.h \
 	$$PWD/networkWidget.h \
 	$$PWD/fileSystemFilter.h \
-	$$PWD/cameraWidget.h
+	$$PWD/cameraWidget.h \
+	$$PWD/pwmCaptureIndicator.h
 
 SOURCES += \
 	$$PWD/autoRunner.cpp \
@@ -104,16 +105,21 @@ SOURCES += \
 	$$PWD/sensorLever.cpp \
 	$$PWD/scriptHolder.cpp \
 	$$PWD/gamepadIndicator.cpp \
-	$$PWD/$$PLATFORM/powerLevel.cpp \
 	$$PWD/gyroscopeIndicator.cpp \
 	$$PWD/accelerometerWidget.cpp \
 	$$PWD/networkWidget.cpp \
 	$$PWD/fileSystemFilter.cpp \
-	$$PWD/cameraWidget.cpp
+	$$PWD/cameraWidget.cpp \
+	$$PWD/pwmCaptureIndicator.cpp
 
-TRANSLATIONS = \
-	$$PWD/../translations/ru/trikGui_ru.ts \
-	$$PWD/../translations/fr/trikGui_fr.ts \
+
+
+!trik_not_brick {
+    SOURCES += $$PWD/powerLevel.cpp
+} else {
+    SOURCES += $$PWD/powerLevel_stub.cpp
+}
+
 
 RESOURCES = trikGui.qrc
 
@@ -122,6 +128,6 @@ OTHER_FILES += \
 implementationIncludes(trikKernel trikControl trikCommunicator trikScriptRunner trikWiFi trikTelemetry)
 transitiveIncludes(trikNetwork)
 PythonQtIncludes()
-links(trikQsLog trikKernel trikControl trikCommunicator trikScriptRunner trikWiFi trikTelemetry trikNetwork)
+links(trikRuntimeQsLog trikKernel trikControl trikCommunicator trikScriptRunner trikWiFi trikTelemetry trikNetwork)
 
 installs()

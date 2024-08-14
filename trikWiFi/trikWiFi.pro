@@ -32,9 +32,14 @@ HEADERS += \
 SOURCES += \
 	$$PWD/src/trikWiFi.cpp \
 	$$PWD/src/trikWiFiWorker.cpp \
-	$$PWD/src/$$PLATFORM/wpaSupplicantCommunicator.cpp \
+
+trik_not_brick {
+	SOURCES += $$PWD/src/wpaSupplicantCommunicator_stub.cpp
+} else {
+	SOURCES += $$PWD/src/wpaSupplicantCommunicator.cpp
+}
 
 implementationIncludes(trikKernel)
-links(trikQsLog trikKernel)
+links(trikRuntimeQsLog trikKernel)
 
 installs()

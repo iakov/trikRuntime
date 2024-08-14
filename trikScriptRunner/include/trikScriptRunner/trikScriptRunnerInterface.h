@@ -31,6 +31,7 @@
 #include <trikControl/gamepadInterface.h>
 #include <trikControl/gyroSensorInterface.h>
 #include <trikControl/i2cDeviceInterface.h>
+#include <trikControl/irCameraInterface.h>
 #include <trikControl/lineSensorInterface.h>
 #include <trikControl/motorInterface.h>
 #include <trikControl/objectSensorInterface.h>
@@ -67,6 +68,7 @@
 	TEMPLATE(trikControl::GamepadInterface) \
 	TEMPLATE(trikControl::GyroSensorInterface) \
 	TEMPLATE(trikControl::I2cDeviceInterface) \
+	TEMPLATE(trikControl::IrCameraInterface) \
 	TEMPLATE(trikControl::KeysInterface) \
 	TEMPLATE(trikControl::LedInterface) \
 	TEMPLATE(trikControl::LineSensorInterface) \
@@ -78,13 +80,16 @@
 	TEMPLATE(trikControl::VectorSensorInterface) \
 	TEMPLATE(trikNetwork::MailboxInterface) \
 	TEMPLATE(trikControl::LidarInterface) \
+	TEMPLATE(trikControl::PwmCaptureInterface) \
 
 namespace trikScriptRunner {
 
 enum class ScriptType { // must be 0, 1, ..
 	UNINITIALIZED = -1,
 	JAVASCRIPT,
+#ifndef TRIK_NOPYTHON
 	PYTHON,
+#endif
 	Size // should always be the last
 };
 
