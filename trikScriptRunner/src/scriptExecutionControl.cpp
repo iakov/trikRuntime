@@ -20,9 +20,16 @@
 #include <QtCore/QFileInfo>
 #include <QtCore/QStringList>
 
+#include <QRandomGenerator>
 #include <QsLog.h>
 
+#include <trikControl/utilities.h>
+
 using namespace trikScriptRunner;
+
+ScriptExecutionControl::ScriptExecutionControl(trikControl::BrickInterface *brick): mBrick(brick) {
+	qRegisterMetaType<QVector<int32_t>>("QVector<int32_t>");
+}
 
 ScriptExecutionControl::~ScriptExecutionControl()
 {
@@ -33,17 +40,17 @@ void ScriptExecutionControl::reset()
 {
 	mInEventDrivenMode = false;
 	emit stopWaiting();
-	for (QTimer * const timer : mTimers) {
-		QMetaObject::invokeMethod(timer, "stop", Qt::QueuedConnection);
+	for (auto &&timer : mTimers) {
+		QMetaObject::invokeMethod(timer, &QTimer::stop, Qt::QueuedConnection);
 		timer->deleteLater();
 	}
 
 	mTimers.clear();
 }
 
-QTimer* ScriptExecutionControl::timer(int milliseconds)
+QObject* ScriptExecutionControl::timer(int milliseconds)
 {
-	QTimer *result = new QTimer();
+	auto result = new QTimer();
 	mTimers.append(result);
 	result->start(milliseconds);
 	return result;
@@ -52,9 +59,9 @@ QTimer* ScriptExecutionControl::timer(int milliseconds)
 void ScriptExecutionControl::wait(const int &milliseconds)
 {
 	QEventLoop loop;
-	QObject::connect(this, SIGNAL(stopWaiting()), &loop, SLOT(quit()), Qt::DirectConnection);
+	QObject::connect(this, &ScriptExecutionControl::stopWaiting, &loop, &QEventLoop::quit);
 	QTimer t;
-	connect(&t, SIGNAL(timeout()), &loop, SLOT(quit()), Qt::DirectConnection);
+	connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
 	t.start(milliseconds);
 	loop.exec();
 }
@@ -70,7 +77,7 @@ int ScriptExecutionControl::random(int from, int to) const
 		qSwap(from, to);
 	}
 
-	return qrand() % (to - from + 1) + from;
+	return QRandomGenerator::global()->bounded(from, to+1);
 }
 
 void ScriptExecutionControl::run()
@@ -108,6 +115,13 @@ void ScriptExecutionControl::writeToFile(const QString &file, const QString &tex
 	out.write(text.toUtf8());
 }
 
+void ScriptExecutionControl::writeData(const QString &file, const QVector<uint8_t> &bytes)
+{
+	QFile out(file);
+	out.open(QIODevice::WriteOnly | QIODevice::Append);
+	out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
 QStringList ScriptExecutionControl::readAll(const QString &file) const
 {
 	QFile in(file);
@@ -130,4 +144,14 @@ void ScriptExecutionControl::removeFile(const QString &file)
 {
 	QFile out(file);
 	out.remove();
+}
+
+int ScriptExecutionControl::timeInterval(int packedTimeLeft, int packedTimeRight)
+{
+	return trikKernel::TimeVal::timeInterval(packedTimeLeft, packedTimeRight);
+}
+
+QVector<int32_t> ScriptExecutionControl::getPhoto()
+{
+	return trikControl::Utilities::rescalePhoto(mBrick->getStillImage());
 }

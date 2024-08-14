@@ -16,11 +16,12 @@
 
 #include <QtCore/QObject>
 #include <QtNetwork/QTcpServer>
+#include "trikScriptRunnerDeclSpec.h"
 
 namespace trikScriptRunner {
 
 /// Class for script variables observing, based on HTTP server
-class TrikVariablesServer : public QObject
+class TRIKSCRIPTRUNNER_EXPORT TrikVariablesServer : public QObject
 {
 	Q_OBJECT
 public:
@@ -46,7 +47,7 @@ private slots:
 
 private:
 	QScopedPointer<QTcpServer> mTcpServer;
-	QTcpSocket *mCurrentConnection; // Has ownership in QTcpServer
+	QTcpSocket *mCurrentConnection {}; // Has ownership in QTcpServer
 
 	constexpr static int port = 10000;
 };

@@ -1,0 +1,27 @@
+version: 2
+updates:
+- package-ecosystem: gitsubmodule
+  directory: "/"
+  schedule:
+    interval: monthly
+  reviewers:
+  - iakov
+  assignees:
+  - iakov
+  groups:
+    submodules:
+      patterns:
+        - "*" # All submodules updates
+
+- package-ecosystem: github-actions
+  directory: "/"
+  schedule:
+    interval: monthly
+  reviewers:
+  - iakov
+  assignees:
+  - iakov
+  groups:
+    github-actions:
+      patterns:
+        - "*" # All submodules updates

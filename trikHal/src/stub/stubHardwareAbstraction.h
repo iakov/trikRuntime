@@ -32,11 +32,12 @@ public:
 	MspUsbInterface &mspUsb() override;
 	SystemConsoleInterface &systemConsole() override;
 
-	EventFileInterface *createEventFile(const QString &fileName, QThread &thread) const override;
+	EventFileInterface *createEventFile(const QString &fileName) const override;
 	FifoInterface *createFifo(const QString &fileName) const override;
+	IIOFileInterface *createIIOFile(const QString &fileName) const override;
 	InputDeviceFileInterface *createInputDeviceFile(const QString &fileName) const override;
 	OutputDeviceFileInterface *createOutputDeviceFile(const QString &fileName) const override;
-	QVector<uint8_t> captureV4l2StillImage(const QString &port, const QString &pathToPic) const override;
+	QVector<uint8_t> captureV4l2StillImage(const QString &port, const QDir &pathToPic) const override;
 
 private:
 	QScopedPointer<MspI2cInterface> mMspI2cBus;

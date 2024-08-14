@@ -15,14 +15,18 @@
 #pragma once
 
 #include <QtCore/QStringList>
+#include <trikHal/trikHalDeclSpec.h>
 
 namespace trikHal {
 
 /// Represents console of an OS.
-class SystemConsoleInterface
+class TRIKHAL_EXPORT SystemConsoleInterface
 {
+	Q_DISABLE_COPY(SystemConsoleInterface)
 public:
-	virtual ~SystemConsoleInterface() {}
+	virtual ~SystemConsoleInterface() = default;
+
+	SystemConsoleInterface() = default;
 
 	/// Executes given command on a system console. Returns return code of a command.
 	virtual int system(const QString &command) = 0;
@@ -34,7 +38,7 @@ public:
 	/// Synchronously starts given process with given arguments.
 	/// @returns true, if process was started successfully.
 	virtual bool startProcessSynchronously(const QString &processName, const QStringList &arguments
-			, QString * const output = nullptr) = 0;
+			, QString * output = nullptr) = 0;
 };
 
 }

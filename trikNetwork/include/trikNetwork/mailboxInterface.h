@@ -14,11 +14,11 @@
 
 #pragma once
 
-#include <QtCore/QObject>
+#include <QMetaType>
+#include <QObject>
 #include <QtNetwork/QHostAddress>
-#include <QtXml/QDomElement>
 
-#include "declSpec.h"
+#include "trikNetworkDeclSpec.h"
 
 namespace trikNetwork {
 
@@ -40,10 +40,10 @@ public:
 	virtual void setHullNumber(int myHullNumber) = 0;
 
 	/// Returns IP of a leader robot, or empty QHostAddress if we are not connected.
-	virtual QHostAddress serverIp() const = 0;
+	virtual QString serverIp() const = 0;
 
 	/// Returns our IP address, or empty QHostAddress if we are not connected.
-	virtual QHostAddress myIp() const = 0;
+	virtual QString myIp() const = 0;
 
 	/// Clears message queue.
 	virtual void clearQueue() = 0;
@@ -93,3 +93,5 @@ signals:
 };
 
 }
+
+Q_DECLARE_METATYPE(trikNetwork::MailboxInterface*)

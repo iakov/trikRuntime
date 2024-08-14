@@ -19,16 +19,16 @@
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
 #include <unistd.h>
+#include <array>
 
 #include <QsLog.h>
 
 using namespace trikHal::trik;
 
-static inline __s32 i2c_smbus_access(int file, char read_write, __u8 command
-		, int size, union i2c_smbus_data *data)
+static inline __s32 i2c_smbus_access(int file, __u8 read_write, __u8 command
+		, __u32 size, union i2c_smbus_data *data)
 {
-	struct i2c_smbus_ioctl_data args;
-
+	struct i2c_smbus_ioctl_data args {};
 	args.read_write = read_write;
 	args.command = command;
 	args.size = size;
@@ -38,7 +38,7 @@ static inline __s32 i2c_smbus_access(int file, char read_write, __u8 command
 
 static inline __s32 i2c_smbus_read_word_data(int file, __u8 command)
 {
-	union i2c_smbus_data data;
+	union i2c_smbus_data data {};
 	if (i2c_smbus_access(file, I2C_SMBUS_READ, command, I2C_SMBUS_WORD_DATA, &data)) {
 		return -1;
 	} else {
@@ -48,7 +48,7 @@ static inline __s32 i2c_smbus_read_word_data(int file, __u8 command)
 
 static inline __s32 i2c_smbus_read_i2c_block_data(int file, __u8 command, __u8 length, __u8 *values)
 {
-	union i2c_smbus_data data;
+	union i2c_smbus_data data {};
 
 	if (length > 32) {
 		length = 32;
@@ -71,14 +71,14 @@ static inline __s32 i2c_smbus_read_i2c_block_data(int file, __u8 command, __u8 l
 
 static inline __s32 i2c_smbus_write_word_data(int file, __u8 command, __u16 value)
 {
-	union i2c_smbus_data data;
+	union i2c_smbus_data data {};
 	data.word = value;
 	return i2c_smbus_access(file, I2C_SMBUS_WRITE, command, I2C_SMBUS_WORD_DATA, &data);
 }
 
 static inline __s32 i2c_smbus_write_byte_data(int file, __u8 command, __u8 value)
 {
-	union i2c_smbus_data data;
+	union i2c_smbus_data data {};
 	data.byte = value;
 	return i2c_smbus_access(file, I2C_SMBUS_WRITE, command, I2C_SMBUS_BYTE_DATA, &data);
 }
@@ -102,8 +102,8 @@ int TrikI2c::read(const QByteArray &data)
 	if (data.size() == 2) {
 		return i2c_smbus_read_word_data(mDeviceFileDescriptor, data[0]);
 	} else {
-		__u8 buffer[4] = {0};
-		i2c_smbus_read_i2c_block_data(mDeviceFileDescriptor, data[0], 4, buffer);
+		std::array<uint8_t, 4> buffer {};
+		i2c_smbus_read_i2c_block_data(mDeviceFileDescriptor, data[0], 4, buffer.data());
 		return buffer[3] << 24 | buffer[2] <<  16 | buffer[1] << 8 | buffer[0];
 	}
 }

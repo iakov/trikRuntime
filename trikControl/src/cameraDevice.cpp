@@ -22,15 +22,19 @@
 #include <QsLog.h>
 #include <trikKernel/configurer.h>
 
+#include <QEventLoop>
+#include <QThread>
+#include <functional>
+
 namespace trikControl {
 
-CameraDevice::CameraDevice(const QString & mediaPath, const trikKernel::Configurer &configurer
+CameraDevice::CameraDevice(const QString & port, const QString & mediaPath, const trikKernel::Configurer &configurer
 							, trikHal::HardwareAbstractionInterface &hardwareAbstraction)
 {
-	Q_UNUSED(hardwareAbstraction);
+	Q_UNUSED(hardwareAbstraction)
 
-	QString type = configurer.attributeByDevice("camera", "type");
-	QString src = configurer.attributeByDevice("camera", "src");
+	QString type = configurer.attributeByPort(port, "type");
+	QString src = configurer.attributeByPort(port, "src");
 
 	QString failMessage;
 
@@ -43,7 +47,7 @@ CameraDevice::CameraDevice(const QString & mediaPath, const trikKernel::Configur
 			failMessage = "can use v4l2 only on Linux";
 #endif
 	} else if (type == "file") {
-				QStringList filters = configurer.attributeByDevice("camera", "filters").split(',');
+				QStringList filters = configurer.attributeByPort(port, "filters").split(',');
 				decltype(mCameraImpl)(new ImitationCameraImplementation(filters, mediaPath)).swap(mCameraImpl);
 	} else {
 		failMessage = "unknown camera device type:" + type;
@@ -67,10 +71,29 @@ CameraDevice::CameraDevice(const QString & mediaPath, const trikKernel::Configur
 
 
 QVector<uint8_t> CameraDevice::getPhoto() {
-	if (mCameraImpl)
-		return mCameraImpl->getPhoto();
-	else
+	if (!mCameraImpl) {
 		return QVector<uint8_t>();
+	}
+
+	QMutexLocker lock(&mCameraMutex);
+	QVector<uint8_t> photo;
+	std::function<void()> runFunc = [this, &photo](){ mCameraImpl->getPhoto().swap(photo); };
+#if QT_VERSION_MAJOR>=5 && QT_VERSION_MINOR>=10 && QT_VERSION_PATCH >= 2
+	QScopedPointer<QThread> t(QThread::create(std::move(runFunc)));
+#else
+	struct CameraThread: public QThread {
+		explicit CameraThread(std::function<void()> &&f): mF(f) {}
+		void run() override { mF(); }
+		std::function<void()> mF;
+	};
+	QScopedPointer<QThread> t(new CameraThread(std::move(runFunc)));
+#endif
+	QEventLoop l;
+	QObject::connect(t.data(), &QThread::finished, &l, &QEventLoop::quit);
+	t->setObjectName(__PRETTY_FUNCTION__);
+	t->start();
+	l.exec();
+	return photo;
 }
 
 

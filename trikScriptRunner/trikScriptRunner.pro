@@ -15,62 +15,82 @@
 TEMPLATE = lib
 
 include(../global.pri)
-include(./PyTrikControl/PyTrikControl.pri)
 
-enableFlagIfCan(-Wno-error=cast-function-type)
+DEBUG_EXT=$${CONFIGURATION_SUFFIX}
+
+clang:QMAKE_CXXFLAGS *= -Wno-error -Wno-error=sometimes-uninitialized -Wno-error=writable-strings
+QMAKE_CXXFLAGS *= -Wno-error=cast-qual -Wno-error=redundant-decls
+QMAKE_CXXFLAGS -= -Werror -Werror=pedantic -pedantic-errors -Werror=write-strings
+QT += widgets
+
+!trik_nopython {
+  #PythonQt generated files have problems
+  INCLUDEPATH *= $$PWD/../trikControl/include/trikControl $$PWD/../trikKernel/include/trikKernel
+  include($$PWD/../PythonQt/PythonQt/build/PythonQt_QtAll.prf)
+  include(./generated_cpp/PyTrikControl/PyTrikControl.pri)
+}
+
+!macx:enableFlagIfCan(-Wno-error=cast-function-type)
 
 PUBLIC_HEADERS += \
 	$$PWD/include/trikScriptRunner/trikScriptRunner.h \
+	$$PWD/include/trikScriptRunner/trikScriptControlInterface.h \
 
 HEADERS += \
 	$$PWD/src/scriptable.h \
 	$$PWD/src/scriptExecutionControl.h \
 	$$PWD/src/scriptEngineWorker.h \
-	$$PWD/src/pythonEngineWorker.h \
 	$$PWD/src/threading.h \
 	$$PWD/src/utils.h \
 	$$PWD/src/scriptThread.h \
 	$$PWD/include/trikScriptRunner/trikScriptRunnerInterface.h \
-	$$PWD/include/trikScriptRunner/trikPythonRunner.h \
 	$$PWD/include/trikScriptRunner/trikJavaScriptRunner.h \
-	$$PWD/include/trikScriptRunner/trikVariablesServer.h
+	$$PWD/include/trikScriptRunner/trikVariablesServer.h \
+	$$PWD/include/trikScriptRunner/trikScriptRunnerDeclSpec.h
 
 SOURCES += \
 	$$PWD/src/scriptExecutionControl.cpp \
 	$$PWD/src/scriptEngineWorker.cpp \
-	$$PWD/src/pythonEngineWorker.cpp \
 	$$PWD/src/trikScriptRunner.cpp \
-	$$PWD/src/trikPythonRunner.cpp \
 	$$PWD/src/trikJavaScriptRunner.cpp \
 	$$PWD/src/threading.cpp \
 	$$PWD/src/utils.cpp \
 	$$PWD/src/scriptThread.cpp \
-	$$PWD/src/trikVariablesServer.cpp
+	$$PWD/src/trikVariablesServer.cpp \
+	$$PWD/src/trikScriptControlInterface.cpp
+
+!trik_nopython {
+	HEADERS += \
+		$$PWD/src/pythonEngineWorker.h \
+		$$PWD/include/trikScriptRunner/trikPythonRunner.h
+
+	SOURCES += \
+		$$PWD/src/pythonEngineWorker.cpp \
+		$$PWD/src/trikPythonRunner.cpp
+
+	INCLUDEPATH += \
+		$$PWD/generated_cpp/PyTrikControl \
+}
 
 OTHER_FILES += \
 	$$PWD/system.js \
-	$$PWD/system.py \
+	$$PWD/TRIK.py \
 
 INCLUDEPATH += \
-        $$PWD/PyTrikControl \
-        $$PWD/../trikControl/src \
-        $$PWD/../trikControl/include/trikControl \
-
-TRANSLATIONS = \
-	$$PWD/../translations/ru/trikScriptRunner_ru.ts \
-	$$PWD/../translations/fr/trikScriptRunner_fr.ts \
+	$$PWD/../trikControl/src \
 
 QT += script network
 
 DEFINES += TRIKSCRIPTRUNNER_LIBRARY
+trik_nopython:DEFINES += TRIK_NOPYTHON
 
 copyToDestdir($$PWD/system.js, NOW)
-copyToDestdir($$PWD/system.py, NOW)
+copyToDestdir($$PWD/TRIK.py, NOW)
 
-links(qslog trikKernel trikControl trikNetwork)
+links(trikRuntimeQsLog trikKernel trikControl trikNetwork)
 implementationIncludes(trikKernel trikNetwork trikControl)
 PythonQtIncludes()
 
 installs()
 installAdditionalSharedFiles($$PWD/system.js)
-installAdditionalSharedFiles($$PWD/system.py)
+installAdditionalSharedFiles($$PWD/TRIK.py)

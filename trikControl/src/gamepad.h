@@ -39,7 +39,7 @@ public:
 	Gamepad(const trikKernel::Configurer &configurer
 			, const trikHal::HardwareAbstractionInterface &hardwareAbstraction);
 
-	~Gamepad() override;
+	~Gamepad() override = default;
 
 	Status status() const override;
 
@@ -59,6 +59,8 @@ public slots:
 	int wheel() const override;
 
 	bool isConnected() const override;
+
+	bool disconnect() override;
 
 private slots:
 	void onNewData(const QString &data);
@@ -82,6 +84,10 @@ private:
 
 	void handleButton(int button, int pressed);
 
+	void handleKeepalive(int waitForMs);
+
+	void handleCustom(const QString &message);
+
 	Fifo mUnderlyingFifo;
 
 	QSet<int> mButtonWasPressed;
@@ -93,7 +99,12 @@ private:
 	QHash<int, QTimer*> mButtonStateClearTimers;
 
 	QHash<int, PadStatus> mPads;
-	int mWheelPercent = -101;
+	int mWheelPercent { -101 };
+
+	QTimer mKeepaliveTimer;
+	QString mLastCustomMessage;
+
+	bool mConnected { false };
 };
 
 }

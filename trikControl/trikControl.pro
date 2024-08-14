@@ -15,7 +15,7 @@ TEMPLATE = lib
 
 include(../global.pri)
 
-#QT += multimediawidgets 
+#QT += multimediawidgets
 
 PUBLIC_HEADERS += \
 	$$PWD/include/trikControl/batteryInterface.h \
@@ -23,7 +23,7 @@ PUBLIC_HEADERS += \
 	$$PWD/include/trikControl/brickInterface.h \
 	$$PWD/include/trikControl/cameraDeviceInterface.h \
 	$$PWD/include/trikControl/colorSensorInterface.h \
-	$$PWD/include/trikControl/declSpec.h \
+	$$PWD/include/trikControl/trikControlDeclSpec.h \
 	$$PWD/include/trikControl/deviceInterface.h \
 	$$PWD/include/trikControl/displayInterface.h \
 	$$PWD/include/trikControl/displayWidgetInterface.h \
@@ -44,13 +44,17 @@ PUBLIC_HEADERS += \
 	$$PWD/include/trikControl/vectorSensorInterface.h \
 	$$PWD/include/trikControl/gyroSensorInterface.h \
 	$$PWD/include/trikControl/markerInterface.h \
-	$$PWD/include/trikControl/i2cDeviceInterface.h
+	$$PWD/include/trikControl/i2cDeviceInterface.h \
+	$$PWD/include/trikControl/utilities.h \
+	$$PWD/include/trikControl/trikControlDeclSpec.h \
+	$$PWD/include/trikControl/lidarInterface.h \
+	$$PWD/include/trikControl/irCameraInterface.h \
 #	$$PWD/include/trikControl/headingSensorInterface.h \
 
 HEADERS += \
 	$$PWD/src/abstractVirtualSensorWorker.h \
 	$$PWD/src/analogSensor.h \
-	$$PWD/src/audioSynthDevices.h \
+	$$PWD/src/audioSynthDevice.h \
 	$$PWD/src/battery.h \
 	$$PWD/src/brick.h \
 	$$PWD/src/cameraDevice.h \
@@ -105,8 +109,13 @@ HEADERS += \
 	$$PWD/src/v4l2CameraImplementation.h \
 	$$PWD/src/imitationCameraImplementation.h \
 	$$PWD/src/i2cDevice.h \
-	$$PWD/src/i2cCommunicator.h
-#	$$PWD/src/headingSensor.h \
+	$$PWD/src/i2cCommunicator.h \
+	$$PWD/src/fifoworker.h \
+	$$PWD/src/datafilter.h \
+	$$PWD/src/lidar.h \
+	$$PWD/src/lidarWorker.h \
+	$$PWD/src/irCamera.h \
+	$$PWD/src/irCameraWorker.h \
 
 SOURCES += \
 	$$PWD/src/abstractVirtualSensorWorker.cpp \
@@ -155,17 +164,24 @@ SOURCES += \
 	$$PWD/src/shapes/line.cpp \
 	$$PWD/src/shapes/rectangle.cpp \
 	$$PWD/src/shapes/arc.cpp \
-	$$PWD/src/audioSynthDevices.cpp \
+	$$PWD/src/audioSynthDevice.cpp \
 	$$PWD/src/gyroSensor.cpp \
 	$$PWD/src/cameraDevice.cpp \
 	$$PWD/src/qtCameraImplementation.cpp \
 	$$PWD/src/v4l2CameraImplementation.cpp \
 	$$PWD/src/imitationCameraImplementation.cpp \
-	$$PWD/src/cameraImplementationInterface.cpp \
+	$$PWD/src/cameraDeviceInterface.cpp \
 	$$PWD/src/i2cDevice.cpp \
-	$$PWD/src/i2cCommunicator.cpp
-#	$$PWD/src/headingSensor.cpp \
-
+	$$PWD/src/i2cCommunicator.cpp \
+	$$PWD/src/utilities.cpp \
+	$$PWD/src/brickInterface.cpp \
+ \#	$$PWD/src/headingSensor.cpp \
+	$$PWD/src/fifoworker.cpp \
+	$$PWD/src/datafilter.cpp \
+	$$PWD/src/lidar.cpp \
+	$$PWD/src/lidarWorker.cpp \
+	$$PWD/src/irCamera.cpp \
+	$$PWD/src/irCameraWorker.cpp \
 
 CONFIGS += \
 	$$PWD/configs
@@ -177,14 +193,18 @@ OTHER_FILES += \
 
 DEFINES += TRIKCONTROL_LIBRARY
 
-QT += xml gui multimedia
+QT += xml gui multimedia serialport
 
 if (equals(QT_MAJOR_VERSION, 5)) {
 	QT += widgets
 }
 
-links(qslog trikKernel trikHal)
+links(trikRuntimeQsLog trikKernel trikHal trik-mlx90640)
 implementationIncludes(trikKernel trikHal)
+INCLUDEPATH += $$GLOBAL_PWD/mlx90640-library/mlx90640-library/headers
+
+QMAKE_CXXFLAGS += \
+        -Wno-error=redundant-decls \
 
 copyToDestdir( \
 	$$CONFIGS \

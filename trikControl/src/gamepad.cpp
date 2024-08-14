@@ -22,11 +22,9 @@ Gamepad::Gamepad(const trikKernel::Configurer &configurer
 		, const trikHal::HardwareAbstractionInterface &hardwareAbstraction)
 	: mUnderlyingFifo(configurer.attributeByDevice("gamepad", "file"), hardwareAbstraction)
 {
-	connect(&mUnderlyingFifo, SIGNAL(newData(QString)), this, SLOT(onNewData(QString)));
-}
-
-Gamepad::~Gamepad()
-{
+	mKeepaliveTimer.setSingleShot(true);
+	connect(&mKeepaliveTimer, &QTimer::timeout, this, &Gamepad::disconnect);
+	connect(&mUnderlyingFifo, &Fifo::newLine, this, &Gamepad::onNewData);
 }
 
 void Gamepad::reset()
@@ -72,14 +70,29 @@ int Gamepad::wheel() const
 
 bool Gamepad::isConnected() const
 {
-	/// TODO: !!!
-	return mUnderlyingFifo.status() == Status::ready;
+	return mConnected && status() == Status::ready;
+}
+
+bool Gamepad::disconnect()
+{
+	auto wasConnected = isConnected();
+	if (wasConnected) {
+		mConnected = false;
+		reset();
+		emit disconnected();
+	}
+	return wasConnected;
 }
 
 void Gamepad::onNewData(const QString &data)
 {
+	if (!isConnected()) {
+		mConnected = true;
+		emit connected();
+	}
+
 	const QStringList cmd = data.split(" ", QString::SkipEmptyParts);
-	if (cmd.length() < 1) {
+	if (cmd.isEmpty()) {
 		return;
 	}
 
@@ -119,6 +132,11 @@ void Gamepad::onNewData(const QString &data)
 	} else if (commandName == "wheel") {
 		const int perc = cmd.at(1).trimmed().toInt();
 		handleWheel(perc);
+	} else if (commandName == "keepalive") {
+		const int waitForMs = cmd.at(1).trimmed().toInt();
+		handleKeepalive(waitForMs);
+	} else if (commandName == "custom") {
+		handleCustom(data.mid(commandName.length()).trimmed());
 	} else {
 		QLOG_ERROR() << "Gamepad: unknown command" << commandName;
 	}
@@ -155,12 +173,8 @@ void Gamepad::handleButton(int button, int pressed)
 	if (!tmr) {
 		tmr = new QTimer(this);
 		tmr->setInterval(500);
-		connect(
-				tmr
-				, SIGNAL(timeout())
-				, this
-				, SLOT(onButtonStateClearTimerTimeout())
-				);
+		tmr->setSingleShot(true);
+		connect(tmr, &QTimer::timeout, this, &Gamepad::onButtonStateClearTimerTimeout);
 	}
 
 	tmr->start();
@@ -168,9 +182,24 @@ void Gamepad::handleButton(int button, int pressed)
 	emit Gamepad::button(button, pressed);
 }
 
+void Gamepad::handleKeepalive(int waitForMs)
+{
+	if (waitForMs == 0) {
+		mKeepaliveTimer.stop();
+	} else {
+		mKeepaliveTimer.start(waitForMs);
+	}
+}
+
+void Gamepad::handleCustom(const QString &message)
+{
+	mLastCustomMessage = message;
+	emit custom(message);
+}
+
 void Gamepad::onButtonStateClearTimerTimeout()
 {
-	const auto timer = dynamic_cast<QTimer *>(sender());
+	const auto timer = qobject_cast<QTimer *>(sender());
 	if (timer) {
 		const int button = mButtonStateClearTimers.key(timer);
 		mButtonState[button] = false;

@@ -15,7 +15,8 @@
 #pragma once
 
 #include <QtCore/QString>
-#include <QtCore/QSharedPointer>
+#include <memory>
+#include <trikKernel/trikKernelDeclSpec.h>
 
 namespace QsLogging {
 class Destination;
@@ -24,7 +25,7 @@ class Destination;
 namespace trikKernel {
 
 /// Helper for working with QsLog library.
-class LoggingHelper
+class TRIKKERNEL_EXPORT LoggingHelper
 {
 public:
 	/// Constructor. Initializes logger with default settings, supposed to be alive until program finishes (RAII idiom).
@@ -34,8 +35,8 @@ public:
 	~LoggingHelper();
 
 private:
-	QSharedPointer<QsLogging::Destination> mFileDestination;
-	QSharedPointer<QsLogging::Destination> mConsoleDestination;
+	std::unique_ptr<QsLogging::Destination> mFileDestination;
+	std::unique_ptr<QsLogging::Destination> mConsoleDestination;
 };
 
 }

@@ -23,7 +23,7 @@ DEFINES += TRIKWIFI_LIBRARY
 PUBLIC_HEADERS += \
 	$$PWD/include/trikWiFi/trikWiFi.h \
 	$$PWD/include/trikWiFi/networkStructs.h \
-	$$PWD/include/trikWiFi/declSpec.h \
+	$$PWD/include/trikWiFi/trikWifiDeclSpec.h \
 
 HEADERS += \
 	$$PWD/src/wpaSupplicantCommunicator.h \
@@ -32,9 +32,14 @@ HEADERS += \
 SOURCES += \
 	$$PWD/src/trikWiFi.cpp \
 	$$PWD/src/trikWiFiWorker.cpp \
-	$$PWD/src/$$PLATFORM/wpaSupplicantCommunicator.cpp \
+
+trik_not_brick {
+	SOURCES += $$PWD/src/wpaSupplicantCommunicator_stub.cpp
+} else {
+	SOURCES += $$PWD/src/wpaSupplicantCommunicator.cpp
+}
 
 implementationIncludes(trikKernel)
-links(qslog trikKernel)
+links(trikRuntimeQsLog trikKernel)
 
 installs()

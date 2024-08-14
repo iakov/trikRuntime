@@ -15,8 +15,8 @@
 #pragma once
 
 #include <QtCore/QVector>
-
-#include "declSpec.h"
+#include <QImage>
+#include <trikControl/trikControlDeclSpec.h>
 #include "deviceInterface.h"
 
 namespace trikControl {
@@ -32,6 +32,12 @@ public:
 	virtual Status status() const override = 0;
 
 	~CameraDeviceInterface() override = default;
+
+	/// Convert QImage to QVector of uint8_t in RGB 888 format
+	/// @param imgOrig - converting this QImage to QVector
+	static QVector<uint8_t> qImageToQVector(const QImage &imgOrig);
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::CameraDeviceInterface *)

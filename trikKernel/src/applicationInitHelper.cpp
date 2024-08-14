@@ -25,6 +25,7 @@
 	#include <QtWidgets/QApplication>
 #endif
 
+#include <QRandomGenerator>
 #include <QsLog.h>
 
 #include "translationsHelper.h"
@@ -40,13 +41,12 @@ ApplicationInitHelper::ApplicationInitHelper(QCoreApplication &app)
 	: mApp(app)
 	, mLoggingHelper(new LoggingHelper(Paths::logsPath()))
 {
-	qsrand(static_cast<uint>(QDateTime::currentMSecsSinceEpoch()));
 	mApp.setApplicationVersion(trikKernel::version);
 
 	trikKernel::TranslationsHelper::initLocale(app.arguments().contains("--no-locale")
 			|| app.arguments().contains("-no-locale"));
 
-	QApplication *guiApp = dynamic_cast<QApplication *>(&app);
+	auto *guiApp = qobject_cast<QApplication *>(&app);
 	if (guiApp) {
 		QFont font(guiApp->font());
 		font.setPixelSize(18);

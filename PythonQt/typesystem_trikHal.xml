@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<typesystem package="PyTrikControl" >
+ <load-typesystem name="typesystem_core.xml" generate="no" />
+ <load-typesystem name="typesystem_gui.xml"  generate="no" />
+ <load-typesystem name="typesystem_trikKernel.xml"  generate="no" />
+
+ <namespace-type name="trikHal"/>
+ <object-type name="trikHal" />
+ <interface-type name="trikHal::FifoInterface" create-shell="no"/>
+</typesystem>

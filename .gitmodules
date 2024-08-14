@@ -4,3 +4,9 @@
 [submodule "tests/thirdparty/googletest"]
 	path = tests/thirdparty/googletest
 	url = https://github.com/google/googletest
+[submodule "qslog/qslog"]
+	path = qslog/qslog
+	url = https://bitbucket.org/codeimproved/qslog.git
+[submodule "mlx90640-library/mlx90640-library"]
+	path = mlx90640-library/mlx90640-library
+	url = https://github.com/trikset/trik-mlx90640-library.git

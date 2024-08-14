@@ -19,81 +19,37 @@
 #include <QtCore/QTextStream>
 #include <QtCore/QMetaMethod>
 #include <QtCore/QStringBuilder>
-
 #include <trikKernel/fileUtils.h>
 #include <trikKernel/paths.h>
-#include <trikKernel/timeVal.h>
-#include <trikControl/batteryInterface.h>
-#include <trikControl/colorSensorInterface.h>
-#include <trikControl/displayInterface.h>
-#include <trikControl/encoderInterface.h>
-#include <trikControl/eventCodeInterface.h>
-#include <trikControl/eventDeviceInterface.h>
-#include <trikControl/eventInterface.h>
-#include <trikControl/gamepadInterface.h>
-#include <trikControl/gyroSensorInterface.h>
-#include <trikControl/i2cDeviceInterface.h>
-#include <trikControl/lineSensorInterface.h>
-#include <trikControl/motorInterface.h>
-#include <trikControl/objectSensorInterface.h>
-#include <trikControl/soundSensorInterface.h>
-#include <trikControl/sensorInterface.h>
-#include <trikControl/vectorSensorInterface.h>
-#include <trikNetwork/mailboxInterface.h>
-
+#include "trikScriptRunnerInterface.h"
 #include "scriptable.h"
 #include "utils.h"
 
+#include <QFileInfo>
 #include <QsLog.h>
-
-using namespace trikScriptRunner;
-using namespace trikControl;
-using namespace trikNetwork;
-
-Q_DECLARE_METATYPE(QVector<uint8_t>)
-Q_DECLARE_METATYPE(QVector<int>)
-Q_DECLARE_METATYPE(trikKernel::TimeVal)
-Q_DECLARE_METATYPE(QTimer*)
-
-#define DECLARE_METATYPE_TEMPLATE(TYPE) \
-	Q_DECLARE_METATYPE(TYPE*)
 
 #define REGISTER_METATYPE_FOR_ENGINE(TYPE) \
 	Scriptable<TYPE>::registerMetatype(engine);
 
-#define REGISTER_METATYPE(TYPE) \
-	qRegisterMetaType<TYPE*>(TYPE::staticMetaObject.className());
 
-/// Here we define a convenient template that registers all devices used in trik.
-/// When creating a new device(interface), you should append it to this list.
-/// So it lets you write the device just one time rather than append appropriate line to each place
-/// that uses devices.
-/// ATTENTION: do not forget to append newly created device to this list!
-#define REGISTER_DEVICES_WITH_TEMPLATE(TEMPLATE) \
-	TEMPLATE(BatteryInterface) \
-	TEMPLATE(ColorSensorInterface) \
-	TEMPLATE(FifoInterface) \
-	TEMPLATE(DisplayInterface) \
-	TEMPLATE(EncoderInterface) \
-	TEMPLATE(EventCodeInterface) \
-	TEMPLATE(EventDeviceInterface) \
-	TEMPLATE(EventInterface) \
-	TEMPLATE(GamepadInterface) \
-	TEMPLATE(GyroSensorInterface) \
-	TEMPLATE(I2cDeviceInterface) \
-	TEMPLATE(KeysInterface) \
-	TEMPLATE(LedInterface) \
-	TEMPLATE(LineSensorInterface) \
-	TEMPLATE(MailboxInterface) \
-	TEMPLATE(MarkerInterface) \
-	TEMPLATE(MotorInterface) \
-	TEMPLATE(ObjectSensorInterface) \
-	TEMPLATE(SoundSensorInterface) \
-	TEMPLATE(SensorInterface) \
-	TEMPLATE(Threading) \
-	TEMPLATE(VectorSensorInterface)
+using namespace trikScriptRunner;
 
-REGISTER_DEVICES_WITH_TEMPLATE(DECLARE_METATYPE_TEMPLATE)
+constexpr auto scriptEngineWorkerName = "__scriptEngineWorker";
+
+QScriptValue include(QScriptContext *context, QScriptEngine *engine)
+{
+	const auto &filename = context->argument(0).toString();
+
+	const auto & scriptValue = engine->globalObject().property(scriptEngineWorkerName);
+	if (auto scriptWorkerValue = qobject_cast<ScriptEngineWorker *> (scriptValue.toQObject())) {
+		auto connection = (QThread::currentThread() != engine->thread()) ?
+					Qt::BlockingQueuedConnection : Qt::DirectConnection;
+		QMetaObject::invokeMethod(scriptWorkerValue, [scriptWorkerValue, filename, engine]()
+					{scriptWorkerValue->evalInclude(filename, engine);}, connection);
+	}
+
+	return QScriptValue();
+}
 
 QScriptValue print(QScriptContext *context, QScriptEngine *engine)
 {
@@ -105,11 +61,11 @@ QScriptValue print(QScriptContext *context, QScriptEngine *engine)
 			= [&prettyPrinter](QVariant const & elem) {
 			auto const &arrayPrettyPrinter = [&prettyPrinter](const QVariantList &array) {
 				qint32 arrayLength = array.length();
-				
+
 				if (arrayLength == 0) {
 					return QString("[]");
 				}
-	
+
 				QString res;
 				res.reserve(100000);
 				res.append("[" % prettyPrinter(array.first()));
@@ -117,7 +73,7 @@ QScriptValue print(QScriptContext *context, QScriptEngine *engine)
 				for(auto i = 1; i < arrayLength; ++i) {
 					res.append(", " % prettyPrinter(array.at(i)));
 				}
-	
+
 				res.append("]");
 				return res;
 			};
@@ -130,127 +86,63 @@ QScriptValue print(QScriptContext *context, QScriptEngine *engine)
 		result.append(prettyPrinter(argument.toVariant()));
 	}
 
-	QTextStream(stdout) << result << "\n";
 	auto scriptValue = engine->globalObject().property("script");
-	auto script = dynamic_cast<ScriptExecutionControl*> (scriptValue.toQObject());
-	if (script) {
-		QMetaObject::invokeMethod(script, "sendMessage", Q_ARG(QString, QString("print: %1").arg(result)));
+
+	if (auto script = qobject_cast<TrikScriptControlInterface*> (scriptValue.toQObject())) {
+		result.append('\n');
+		QTimer::singleShot(0, script, [script, result](){ Q_EMIT script->textInStdOut(result);});
+		/// In case of user loop with `print' this gives some time for events to be processed
+		script->wait(0);
 	}
 
 	return engine->toScriptValue(result);
 }
 
-QScriptValue timeInterval(QScriptContext *context, QScriptEngine *engine)
-{
-	int result = trikKernel::TimeVal::timeInterval(context->argument(0).toInteger(), context->argument(1).toInteger());
-	return engine->toScriptValue(result);
-}
-
-static inline int32_t getMedian(uint8_t &a, uint8_t &b, uint8_t &c, uint8_t &d)
-{
-	if (a > b)
-		std::swap(a, b);
-	if (c > d)
-		std::swap(c, d);
-	if (a > c)
-		std::swap(a, c);
-	if (b > d)
-		std::swap(b, d);
-	return (static_cast<int32_t>(b) + c) >> 1;
-}
-
-QScriptValue getPhoto(QScriptContext *context,	QScriptEngine *engine)
-{
-	const QScriptValue & brickValue = engine->globalObject().property("brick");
-	QObject *qObjBrick = brickValue.toQObject();
-	if (qObjBrick)
-	{
-		BrickInterface *brick = qobject_cast<BrickInterface*>(qObjBrick);
-		if (brick)
-		{
-			auto port = context->argumentCount() > 0 ? context->argument(0).toString()
-				: QString("/dev/video0");
-			QLOG_INFO() << "Calling getStillImage()";
-			auto data = brick->getStillImage();
-			QList<int32_t> result;
-			result.reserve(data.size() / 3); //Repack RGB88 from 3 x uint8_t into int32_t
-			constexpr auto IMAGE_WIDTH = 320;
-			constexpr auto IMAGE_HEIGHT = 240;
-			if (data.size() >= IMAGE_WIDTH * IMAGE_HEIGHT * 3) {
-				for(int row = 0; row < IMAGE_HEIGHT; row += 2) {
-					for(int col = 0; col < IMAGE_WIDTH; col+=2) {
-						auto row1 = &data[(row*IMAGE_WIDTH+col)*3];
-						auto row2 = row1 + IMAGE_WIDTH*3;
-						auto r1 = row1[0];
-						auto g1 = row1[1];
-						auto b1 = row1[2];
-						auto r2 = row1[3];
-						auto g2 = row1[4];
-						auto b2 = row1[5];
-						auto r3 = row2[0];
-						auto g3 = row2[1];
-						auto b3 = row2[2];
-						auto r4 = row2[3];
-						auto g4 = row2[4];
-						auto b4 = row2[5];
-
-						result.push_back((getMedian(r1, r2, r3, r4) << 16)
-							| (getMedian(g1, g2, g3, g4) << 8)
-							| getMedian(b1, b2, b3, b4));
-					}
-				}
-			}
-
-			QLOG_INFO() << "Constructed result of getStillImage()";
-			auto val = engine->toScriptValue(result);
-			QLOG_INFO() << "Result of getStillImage() converted to JS value";
-			return val;
-		}
-		else
-		{
-			QLOG_ERROR() << "script getPhoto failed at downcasting qObject to Brick";
-			return QScriptValue();
-		}
-	}
-	else
-	{
-		QLOG_ERROR() << "script getPhoto failed to get brick Obj";
-		return QScriptValue();
-	}
-
-}
-
-ScriptEngineWorker::ScriptEngineWorker(trikControl::BrickInterface &brick
-		, trikNetwork::MailboxInterface * const mailbox
-		, ScriptExecutionControl &scriptControl
+ScriptEngineWorker::ScriptEngineWorker(trikControl::BrickInterface *brick
+		, trikNetwork::MailboxInterface * mailbox
+		, TrikScriptControlInterface *scriptControl
 		)
 	: mBrick(brick)
 	, mMailbox(mailbox)
 	, mScriptControl(scriptControl)
-	, mThreading(this, scriptControl)
-	, mDirectScriptsEngine(nullptr)
-	, mScriptId(0)
-	, mState(ready)
+	, mThreading(this, *scriptControl)
+	, mWorkingDirectory(trikKernel::Paths::userScriptsPath())
 {
-	connect(&mScriptControl, SIGNAL(quitSignal()), this, SLOT(onScriptRequestingToQuit()));
-	connect(this, SIGNAL(getVariables(QString)), &mThreading, SIGNAL(getVariables(QString)));
-	connect(&mThreading, SIGNAL(variablesReady(QJsonObject)), this, SIGNAL(variablesReady(QJsonObject)));
+	connect(mScriptControl, &TrikScriptControlInterface::quitSignal,
+		this, &ScriptEngineWorker::onScriptRequestingToQuit);
+	connect(this, &ScriptEngineWorker::getVariables, &mThreading, &Threading::getVariables);
+	connect(&mThreading, &Threading::variablesReady, this, &ScriptEngineWorker::variablesReady);
 
 	registerUserFunction("print", print);
-	registerUserFunction("timeInterval", timeInterval);
-	registerUserFunction("getPhoto", getPhoto);
-
-	REGISTER_DEVICES_WITH_TEMPLATE(REGISTER_METATYPE)
+	registerUserFunction("include", include);
 }
 
 void ScriptEngineWorker::brickBeep()
 {
-	mBrick.playSound(trikKernel::Paths::mediaPath() + "media/beep_soft.wav");
+	mBrick->playTone(2500, 20);
+}
+
+void ScriptEngineWorker::evalInclude(const QString &filename, QScriptEngine * const engine)
+{
+	QFileInfo fi(mWorkingDirectory, filename);
+	evalExternalFile(fi.absoluteFilePath(), engine);
+}
+
+void ScriptEngineWorker::setWorkingDir(const QString &workingDir)
+{
+	mWorkingDirectory.setPath(workingDir);
 }
 
 void ScriptEngineWorker::stopScript()
 {
 	QMutexLocker locker(&mScriptStateMutex);
+
+	while (mState == starting) {
+		// Some script is starting right now, so we are in inconsistent state. Let it start, then stop it.
+		locker.unlock();
+		QThread::yieldCurrentThread();
+		locker.relock();
+	}
 
 	if (mState == stopping) {
 		// Already stopping, so we can do nothing.
@@ -262,16 +154,12 @@ void ScriptEngineWorker::stopScript()
 		return;
 	}
 
-	while (mState == starting) {
-		// Some script is starting right now, so we are in inconsistent state. Let it start, then stop it.
-		QThread::yieldCurrentThread();
-	}
 
 	QLOG_INFO() << "ScriptEngineWorker: stopping script";
 
 	mState = stopping;
 
-	mScriptControl.reset();
+	mScriptControl->reset();
 
 	if (mMailbox) {
 		mMailbox->stopWaiting();
@@ -281,18 +169,20 @@ void ScriptEngineWorker::stopScript()
 		/// Actually we shall stop script engines here, do mMailbox->stopWaiting(), then stop threads.
 	}
 
-	QMetaObject::invokeMethod(&mThreading, "reset", Qt::QueuedConnection);
+	QMetaObject::invokeMethod(&mThreading, &Threading::reset, Qt::QueuedConnection);
 
 	if (mDirectScriptsEngine) {
 		mDirectScriptsEngine->abortEvaluation();
 		QLOG_INFO() << "ScriptEngineWorker : ending interpretation";
-		emit completed(mDirectScriptsEngine->hasUncaughtException()
-						? mDirectScriptsEngine->uncaughtException().toString()
-						: ""
-				, mScriptId);
+		const auto &msg = mDirectScriptsEngine->hasUncaughtException()
+				   ? mDirectScriptsEngine->uncaughtException().toString()
+				   : "";
+		// This method is called from script.quit()
+		// Thus deletion of the mDirectScriptsEngine should be postponed
+		// Instead of deleteLater() we use zero timer
+		QTimer::singleShot(0, this, [this]() { mDirectScriptsEngine.reset(); });
 
-		mDirectScriptsEngine->deleteLater();
-		mDirectScriptsEngine = nullptr;
+		emit completed(msg, mScriptId);
 	}
 
 	mState = ready;
@@ -300,19 +190,6 @@ void ScriptEngineWorker::stopScript()
 	/// @todo: is it actually stopped?
 
 	QLOG_INFO() << "ScriptEngineWorker: stopping complete";
-}
-
-QStringList ScriptEngineWorker::knownMethodNames() const
-{
-	QSet<QString> result = {"brick", "script", "threading"};
-	collectMethodNames(result, mBrick.metaObject());
-	collectMethodNames(result, mScriptControl.metaObject());
-	if (mMailbox) {
-		result.insert("mailbox");
-		collectMethodNames(result, mMailbox->metaObject());
-	}
-	collectMethodNames(result, mThreading.metaObject());
-	return result.toList();
 }
 
 void ScriptEngineWorker::resetBrick()
@@ -324,21 +201,20 @@ void ScriptEngineWorker::resetBrick()
 		mMailbox->clearQueue();
 	}
 
-	mBrick.reset();
+	mBrick->reset();
 }
 
 void ScriptEngineWorker::run(const QString &script, int scriptId)
 {
 	QMutexLocker locker(&mScriptStateMutex);
 	startScriptEvaluation(scriptId);
-	QMetaObject::invokeMethod(this, "doRun", Q_ARG(const QString &, script));
+	QMetaObject::invokeMethod(this, std::bind(&ScriptEngineWorker::doRun, this, script));
 }
 
 void ScriptEngineWorker::doRun(const QString &script)
 {
 	/// When starting script execution (by any means), clear button states.
-	mBrick.keys()->reset();
-
+	mBrick->keys()->reset();
 	mThreading.startMainThread(script);
 	mState = running;
 	mThreading.waitForAll();
@@ -350,21 +226,21 @@ void ScriptEngineWorker::doRun(const QString &script)
 void ScriptEngineWorker::runDirect(const QString &command, int scriptId)
 {
 	QMutexLocker locker(&mScriptStateMutex);
-	if (!mScriptControl.isInEventDrivenMode()) {
+	if (!mScriptControl->isInEventDrivenMode()) {
 		QLOG_INFO() << "ScriptEngineWorker: starting interpretation";
 		locker.unlock();
 		stopScript();
 	}
 
-	QMetaObject::invokeMethod(this, "doRunDirect", Q_ARG(const QString &, command), Q_ARG(int, scriptId));
+	QMetaObject::invokeMethod(this, std::bind(&ScriptEngineWorker::doRunDirect, this, command, scriptId));
 }
 
 void ScriptEngineWorker::doRunDirect(const QString &command, int scriptId)
 {
-	if (!mScriptControl.isInEventDrivenMode() && !mDirectScriptsEngine) {
+	if (!mScriptControl->isInEventDrivenMode() && !mDirectScriptsEngine) {
 		startScriptEvaluation(scriptId);
-		mDirectScriptsEngine = createScriptEngine(false);
-		mScriptControl.run();
+		mDirectScriptsEngine.reset(createScriptEngine(false));
+		mScriptControl->run();
 		mState = running;
 	}
 
@@ -372,14 +248,13 @@ void ScriptEngineWorker::doRunDirect(const QString &command, int scriptId)
 		mDirectScriptsEngine->evaluate(command);
 
 		/// If script was stopped by quit(), engine will already be reset to nullptr in ScriptEngineWorker::stopScript.
+		QString msg;
 		if (mDirectScriptsEngine && mDirectScriptsEngine->hasUncaughtException()) {
 			QLOG_INFO() << "ScriptEngineWorker : ending interpretation of direct script";
-			emit completed(mDirectScriptsEngine->hasUncaughtException()
-					? mDirectScriptsEngine->uncaughtException().toString()
-					: "", mScriptId);
-			mDirectScriptsEngine->deleteLater();
-			mDirectScriptsEngine = nullptr;
+			msg = mDirectScriptsEngine->uncaughtException().toString();
+			mDirectScriptsEngine.reset();
 		}
+		Q_EMIT completed(msg, mScriptId);
 	}
 }
 
@@ -391,12 +266,30 @@ void ScriptEngineWorker::startScriptEvaluation(int scriptId)
 	emit startedScript(mScriptId);
 }
 
+void ScriptEngineWorker::evalExternalFile(const QString & filepath, QScriptEngine * const engine)
+{
+	if (QFileInfo::exists(filepath)) {
+		engine->evaluate(trikKernel::FileUtils::readFromFile(filepath), filepath);
+		if (engine->hasUncaughtException()) {
+			const auto line = engine->uncaughtExceptionLineNumber();
+			const auto & message = engine->uncaughtException().toString();
+			const auto & backtrace = engine->uncaughtExceptionBacktrace().join("\n");
+			const auto & error = tr("Line %1: %2").arg(QString::number(line), message) + "\nBacktrace"+ backtrace;
+			emit completed(error, mScriptId);
+			QLOG_ERROR() << "Uncaught exception with error" << error;
+		}
+	} else {
+		emit completed(tr("File %1 not found").arg(filepath), mScriptId);
+		QLOG_ERROR() << "File for eval not found, path:" << filepath;
+	}
+}
+
 void ScriptEngineWorker::onScriptRequestingToQuit()
 {
-	if (!mScriptControl.isInEventDrivenMode()) {
+	if (!mScriptControl->isInEventDrivenMode()) {
 		// Somebody erroneously called script.quit() before entering event loop, so we must force event loop for script
 		// and only then quit, to send completed() signal properly.
-		mScriptControl.run();
+		mScriptControl->run();
 	}
 
 	stopScript();
@@ -419,17 +312,18 @@ QScriptEngine * ScriptEngineWorker::createScriptEngine(bool supportThreads)
 	QScriptEngine *engine = new QScriptEngine();
 	QLOG_INFO() << "New script engine" << engine << ", thread:" << QThread::currentThread();
 
-
 	REGISTER_DEVICES_WITH_TEMPLATE(REGISTER_METATYPE_FOR_ENGINE)
+	REGISTER_METATYPE_FOR_ENGINE(trikScriptRunner::Threading)
 
 	Scriptable<QTimer>::registerMetatype(engine);
 	qScriptRegisterMetaType(engine, &timeValToScriptValue, &timeValFromScriptValue);
-	qScriptRegisterSequenceMetaType<QVector<int>>(engine);
+	qScriptRegisterSequenceMetaType<QVector<int32_t>>(engine);
 	qScriptRegisterSequenceMetaType<QStringList>(engine);
 	qScriptRegisterSequenceMetaType<QVector<uint8_t>>(engine);
 
-	engine->globalObject().setProperty("brick", engine->newQObject(&mBrick));
-	engine->globalObject().setProperty("script", engine->newQObject(&mScriptControl));
+	engine->globalObject().setProperty("brick", engine->newQObject(mBrick));
+	engine->globalObject().setProperty("script", engine->newQObject(mScriptControl));
+	engine->globalObject().setProperty(scriptEngineWorkerName, engine->newQObject(this));
 
 	if (mMailbox) {
 		engine->globalObject().setProperty("mailbox", engine->newQObject(mMailbox));
@@ -437,8 +331,8 @@ QScriptEngine * ScriptEngineWorker::createScriptEngine(bool supportThreads)
 
 	// Gamepad can still be accessed from script as brick.gamepad(), 'gamepad' variable is here for backwards
 	// compatibility.
-	if (mBrick.gamepad()) {
-		engine->globalObject().setProperty("gamepad", engine->newQObject(mBrick.gamepad()));
+	if (auto gamepad = mBrick->gamepad()) {
+		engine->globalObject().setProperty("gamepad", engine->newQObject(gamepad));
 	}
 
 	if (supportThreads) {
@@ -480,19 +374,10 @@ void ScriptEngineWorker::addCustomEngineInitStep(const std::function<void (QScri
 	mCustomInitSteps.append(step);
 }
 
-void ScriptEngineWorker::evalSystemJs(QScriptEngine * const engine) const
+void ScriptEngineWorker::evalSystemJs(QScriptEngine * const engine)
 {
 	const QString systemJsPath = trikKernel::Paths::systemScriptsPath() + "system.js";
-	if (QFile::exists(systemJsPath)) {
-		engine->evaluate(trikKernel::FileUtils::readFromFile(systemJsPath));
-		if (engine->hasUncaughtException()) {
-			const int line = engine->uncaughtExceptionLineNumber();
-			const QString message = engine->uncaughtException().toString();
-			QLOG_ERROR() << "system.js: Uncaught exception at line" << line << ":" << message;
-		}
-	} else {
-		QLOG_ERROR() << "system.js not found, path:" << systemJsPath;
-	}
+	evalExternalFile(systemJsPath, engine);
 
 	for (const auto &functionName : mRegisteredUserFunctions.keys()) {
 		QScriptValue functionValue = engine->newFunction(mRegisteredUserFunctions[functionName]);
@@ -500,22 +385,15 @@ void ScriptEngineWorker::evalSystemJs(QScriptEngine * const engine) const
 	}
 }
 
-void ScriptEngineWorker::collectMethodNames(QSet<QString> &result, const QMetaObject *obj) const
+QStringList ScriptEngineWorker::knownMethodNames() const
 {
-	for (int i = obj->methodOffset(); i < obj->methodCount(); ++i) {
-		const QMetaMethod metaMethod = obj->method(i);
-		const QString methodName = QString::fromLatin1(metaMethod.name());
-		result.insert(methodName);
-
-		QString methodReturnType = QString::fromLatin1(metaMethod.typeName());
-		if (methodReturnType.endsWith('*')) {
-			methodReturnType.chop(1);
-		}
-
-		const int typeId = QMetaType::type(methodReturnType.toLatin1());
-		const QMetaObject *newObj = QMetaType::metaObjectForType(typeId);
-		if (newObj) {
-			collectMethodNames(result, newObj);
-		}
+	QSet<QString> result = {"brick", "script", "threading"};
+	TrikScriptRunnerInterface::Helper::collectMethodNames(result, &trikControl::BrickInterface::staticMetaObject);
+	TrikScriptRunnerInterface::Helper::collectMethodNames(result, mScriptControl->metaObject());
+	if (mMailbox) {
+		result.insert("mailbox");
+		TrikScriptRunnerInterface::Helper::collectMethodNames(result, mMailbox->metaObject());
 	}
+	TrikScriptRunnerInterface::Helper::collectMethodNames(result, mThreading.metaObject());
+	return result.values();
 }

@@ -28,8 +28,8 @@ using namespace trikGui;
 TrikGuiApplication::TrikGuiApplication(int &argc, char **argv)
 	: QApplication(argc, argv)
 {
-	connect(&mPowerButtonPressedTimer, SIGNAL(timeout()), this, SLOT(shutdownSoon()));
-	connect(&mShutdownDelayTimer, SIGNAL(timeout()), this, SLOT(shutdown()));
+	connect(&mPowerButtonPressedTimer, &QTimer::timeout, this, &TrikGuiApplication::shutdownSoon);
+	connect(&mShutdownDelayTimer, &QTimer::timeout, this, &TrikGuiApplication::shutdown);
 	mPowerButtonPressedTimer.setSingleShot(true);
 	mShutdownDelayTimer.setSingleShot(true);
 }
@@ -41,16 +41,15 @@ static bool isTrikPowerOffKey(Qt::Key key) {
 bool TrikGuiApplication::notify(QObject *receiver, QEvent *event)
 {
 	if (event->type() == QEvent::KeyPress) {
-		QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+		QKeyEvent *keyEvent = dynamic_cast<QKeyEvent *>(event);
 		if (isTrikPowerOffKey(static_cast<Qt::Key>(keyEvent->key()))) {
 			if (keyEvent->isAutoRepeat()) {
 				//	if (!mPowerButtonPressedTimer.isActive()) {
-				//	qDebug() << "Started because: " << receiver<< event;
 				//	mPowerButtonPressedTimer.start(2000);
 				//	}
 			} else {
 				if (!mPowerButtonPressedTimer.isActive()) {
-					mPowerButtonPressedTimer.start(2000);
+					mPowerButtonPressedTimer.start(1500);
 				}
 				mIsShutdownRequested = true;
 				refreshWidgets(); // refresh display if not auto-repeat
@@ -59,13 +58,12 @@ bool TrikGuiApplication::notify(QObject *receiver, QEvent *event)
 			event = &evntKeyPowerOff;
 		}
 	} else if (event->type() == QEvent::KeyRelease) {
-		QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+		QKeyEvent *keyEvent = dynamic_cast<QKeyEvent *>(event);
 		if (isTrikPowerOffKey(static_cast<Qt::Key>(keyEvent->key()))) {
 			if (!keyEvent->isAutoRepeat()) {
 				mIsShutdownRequested = false;
 //				if (mPowerButtonPressedTimer.isActive()) {
 //					mPowerButtonPressedTimer.stop();
-//					qDebug() << "Stopping because:" << receiver << event;
 //				}
 			} else {
 			}
@@ -105,5 +103,5 @@ void TrikGuiApplication::shutdownSoon()
 
 	mSavedStyleSheet = styleSheet();
 	setStyleSheet(mSavedStyleSheet + " QWidget { background-color:red; } ");
-	mShutdownDelayTimer.start(2000);
+	mShutdownDelayTimer.start(1500);
 }

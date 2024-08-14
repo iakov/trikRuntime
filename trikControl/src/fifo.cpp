@@ -14,12 +14,9 @@
 
 #include "src/fifo.h"
 
-#include <QtCore/QEventLoop>
-
 #include <trikKernel/configurer.h>
 #include <trikHal/hardwareAbstractionInterface.h>
-
-#include <QsLog.h>
+#include <QEventLoop>
 
 #include "src/configurerHelper.h"
 
@@ -32,59 +29,63 @@ Fifo::Fifo(const QString &virtualPort, const trikKernel::Configurer &configurer
 }
 
 Fifo::Fifo(const QString &fileName, const trikHal::HardwareAbstractionInterface &hardwareAbstraction)
-	: mFifo(hardwareAbstraction.createFifo(fileName))
-	, mState("Fifo on '" + fileName + "'")
+	: mFifoWorker(new FifoWorker(fileName, hardwareAbstraction))
 {
-	mState.start();
+	mFifoWorker->moveToThread(&mWorkerThread);
 
-	connect(mFifo.data(), SIGNAL(newData(QString)), this, SLOT(onNewData(QString)));
-	connect(mFifo.data(), SIGNAL(readError()), this, SLOT(onReadError()));
+	connect(mFifoWorker, &FifoWorker::newLine, this, &Fifo::newLine);
+	connect(mFifoWorker, &FifoWorker::newData, this, &Fifo::newData);
+	connect(&mWorkerThread, &QThread::started, mFifoWorker, &FifoWorker::init);
+	connect(&mWorkerThread, &QThread::finished, mFifoWorker, &QObject::deleteLater);
 
-	if (mFifo->open()) {
-		mState.ready();
-	} else {
-		mState.fail();
-	}
+	mWorkerThread.setObjectName(mFifoWorker->metaObject()->className());
+	mWorkerThread.start();
+	mFifoWorker->waitUntilInited();
 }
 
 Fifo::~Fifo()
 {
-	if (mState.isReady()) {
-		mFifo->close();
-	}
+	mWorkerThread.quit();
+	mWorkerThread.wait();
 }
 
 DeviceInterface::Status Fifo::status() const
 {
-	return mState.status();
+	return mFifoWorker->status();
 }
 
 QString Fifo::read()
 {
-	while (mCurrent.isEmpty()) {
-		QEventLoop eventLoop;
-		connect(this, SIGNAL(newData(QString)), &eventLoop, SLOT(quit()));
-		eventLoop.exec();
+	QString result;
+	if (hasLine()) {
+		QMetaObject::invokeMethod(mFifoWorker, [this, &result](){result = mFifoWorker->read();}
+								, Qt::BlockingQueuedConnection);
 	}
+	return result;
+}
 
-	const QString result = mCurrent;
-	mCurrent = "";
+QVector<uint8_t> Fifo::readRaw()
+{
+	QVector<uint8_t> result;
+	if (hasData()) {
+		QMetaObject::invokeMethod(mFifoWorker, [this, &result](){result = mFifoWorker->readRaw();}
+								, Qt::BlockingQueuedConnection);
+	}
+	return result;
+}
+
+bool Fifo::hasLine() const
+{
+	bool result;
+	QMetaObject::invokeMethod(mFifoWorker, [this, &result](){result = mFifoWorker->hasLine();}
+							, Qt::BlockingQueuedConnection);
 	return result;
 }
 
 bool Fifo::hasData() const
 {
-	return mCurrent != "";
-}
-
-void Fifo::onNewData(const QString &data)
-{
-	QString buffer = data;
-	mCurrent.swap(buffer);
-	emit newData(data);
-}
-
-void Fifo::onReadError()
-{
-	mState.fail();
+	bool result;
+	QMetaObject::invokeMethod(mFifoWorker, [this, &result](){result = mFifoWorker->hasData();}
+							, Qt::BlockingQueuedConnection);
+	return result;
 }

@@ -18,6 +18,7 @@
 
 #include <trikKernel/configurer.h>
 #include <trikKernel/timeVal.h>
+#include <QEventLoop>
 #include <QsLog.h>
 
 #include "configurerHelper.h"
@@ -42,17 +43,21 @@ RangeSensor::RangeSensor(const QString &port, const trikKernel::Configurer &conf
 	mMaxValue = ConfigurerHelper::configureInt(configurer, mState, port, "maxValue");
 
 	mSensorWorker.reset(new RangeSensorWorker(configurer.attributeByPort(port, "eventFile"), mState
-			, hardwareAbstraction));
+			, hardwareAbstraction, mMinValue, mMaxValue, configurer.attributeByPort(port, "filter")));
 
 	if (!mState.isFailed()) {
 		mSensorWorker->moveToThread(&mWorkerThread);
 
-		connect(mSensorWorker.data(), SIGNAL(newData(int, int, trikKernel::TimeVal))
-				, this, SIGNAL(newData(int, int, trikKernel::TimeVal)));
+		connect(mSensorWorker.data(), &RangeSensorWorker::newData, this, &RangeSensor::newData);
 
 		QLOG_INFO() << "Starting RangeSensor worker thread" << &mWorkerThread;
+		QEventLoop l;
+		connect(&mWorkerThread, &QThread::started, &l, &QEventLoop::quit);
 
+		mWorkerThread.setObjectName(mSensorWorker->metaObject()->className());
 		mWorkerThread.start();
+
+		l.exec();
 	}
 }
 
@@ -75,7 +80,7 @@ void RangeSensor::init()
 		mState.resetFailure();
 	}
 
-	QMetaObject::invokeMethod(mSensorWorker.data(), "init");
+	QMetaObject::invokeMethod(mSensorWorker.data(), &RangeSensorWorker::init);
 }
 
 int RangeSensor::read()
@@ -101,7 +106,7 @@ int RangeSensor::readRawData()
 void RangeSensor::stop()
 {
 	if (!mState.isFailed()) {
-		QMetaObject::invokeMethod(mSensorWorker.data(), "stop");
+		QMetaObject::invokeMethod(mSensorWorker.data(), &RangeSensorWorker::stop);
 	}
 }
 

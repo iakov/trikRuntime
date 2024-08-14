@@ -16,11 +16,12 @@
 
 #include <QtCore/QString>
 #include <QtCore/QObject>
+#include <trikHal/trikHalDeclSpec.h>
 
 namespace trikHal {
 
 /// Abstraction of Linux FIFO used to receive events. To write to FIFO, use OutputDeviceFileInterface.
-class FifoInterface : public QObject
+class TRIKHAL_EXPORT FifoInterface : public QObject
 {
 	Q_OBJECT
 
@@ -38,8 +39,9 @@ public:
 
 signals:
 	/// Emitted when new data is read from FIFO.
-	void newData(const QString &data);
-
+	void newData(QVector<uint8_t> data);
+	/// Emitted for each line from FIFO.
+	void newLine(QString data);
 	/// Emitted when something is wrong with opened FIFO file and reading failed.
 	/// It may be caused, for example, by another process reading from the same FIFO, it may partially read data.
 	void readError();

@@ -51,7 +51,7 @@ CommunicationSettingsWidget::CommunicationSettingsWidget(trikNetwork::MailboxInt
 
 	mSelectorsHelpLabel.setAlignment(Qt::AlignHCenter);
 
-	const auto hostAddressString = mailbox.serverIp().toString();
+	const auto hostAddressString = mailbox.serverIp();
 
 	if (hostAddressString == QHostAddress().toString()) {
 		mServerIpSelector.setValue(0);
@@ -65,17 +65,20 @@ CommunicationSettingsWidget::CommunicationSettingsWidget(trikNetwork::MailboxInt
 	setLayout(&mLayout);
 
 	mConnectButton.setAutoFillBackground(true);
-	connect(&mConnectButton, SIGNAL(clicked()), this, SLOT(onConnectButtonClicked()));
-	connect(&mConnectButton, SIGNAL(upPressed()), this, SLOT(focusUp()));
-	connect(&mConnectButton, SIGNAL(downPressed()), this, SLOT(focusDown()));
+	connect(&mConnectButton, &ConnectButton::clicked, this, &CommunicationSettingsWidget::onConnectButtonClicked);
+	connect(&mConnectButton, &ConnectButton::upPressed, this, &CommunicationSettingsWidget::focusUp);
+	connect(&mConnectButton, &ConnectButton::downPressed, this, &CommunicationSettingsWidget::focusDown);
 
-	connect(&mHullNumberSelector, SIGNAL(valueChanged(int)), this, SLOT(onHullNumberChanged(int)));
+	connect(&mHullNumberSelector, &NumberSelectionWidget::valueChanged,
+		this, &CommunicationSettingsWidget::onHullNumberChanged);
 
-	connect(&mHullNumberSelector, SIGNAL(upPressed()), this, SLOT(focusUp()));
-	connect(&mHullNumberSelector, SIGNAL(downPressed()), this, SLOT(focusDown()));
+	connect(&mHullNumberSelector, &NumberSelectionWidget::upPressed, this, &CommunicationSettingsWidget::focusUp);
+	connect(&mHullNumberSelector, &NumberSelectionWidget::downPressed,
+		this, &CommunicationSettingsWidget::focusDown);
 
-	connect(&mServerIpSelector, SIGNAL(upPressed()), this, SLOT(focusUp()));
-	connect(&mServerIpSelector, SIGNAL(downPressed()), this, SLOT(focusDown()));
+	connect(&mServerIpSelector,  &NumberSelectionWidget::upPressed, this, &CommunicationSettingsWidget::focusUp);
+	connect(&mServerIpSelector,  &NumberSelectionWidget::downPressed,
+		this, &CommunicationSettingsWidget::focusDown);
 }
 
 QString CommunicationSettingsWidget::menuEntry()
@@ -122,7 +125,7 @@ void CommunicationSettingsWidget::keyPressEvent(QKeyEvent *event)
 void CommunicationSettingsWidget::onConnectButtonClicked()
 {
 	mMailbox.renewIp();
-	QStringList result = mMailbox.myIp().toString().split('.');
+	QStringList result = mMailbox.myIp().split('.');
 
 	if (result.size() != 4) {
 		/// @todo Properly notify user that the robot is not connected.

@@ -17,20 +17,26 @@
 #include <QtCore/QString>
 #include <QtCore/QThread>
 #include <QMutex>
+#include <QFileInfo>
+#include <QDir>
+#include <QSemaphore>
 
 #include <trikControl/brickInterface.h>
 #include <trikNetwork/mailboxInterface.h>
 
-#include "PythonQt_QtAll.h"
-#include "PyTrikControl0.h"
-
+#include "scriptExecutionControl.h"
+#ifdef TRIK_NOPYTHON
+#else
+#  include "PythonQt_QtAll.h"
+#  include "PyTrikControl0.h"
 void PythonQt_init_PyTrikControl(PyObject* module);
+#endif
 
 namespace trikScriptRunner
 {
 
 /// Worker object to be run in a separate thread for Python execution.
-class PythonEngineWorker : public QObject
+class TRIKSCRIPTRUNNER_EXPORT PythonEngineWorker : public QObject
 {
 	Q_OBJECT
 
@@ -38,9 +44,11 @@ public:
 	/// Constructor.
 	/// @param brick - reference to trikControl::Brick instance.
 	/// @param mailbox - mailbox object used to communicate with other robots.
-	PythonEngineWorker(trikControl::BrickInterface &brick
-			, trikNetwork::MailboxInterface * const mailbox
-			);
+	PythonEngineWorker(trikControl::BrickInterface *brick, trikNetwork::MailboxInterface * mailbox
+					   , QSharedPointer<TrikScriptControlInterface> scriptControl
+					   );
+
+	~PythonEngineWorker();
 
 	/// Clears execution state and stops robot.
 	/// Can be safely called from other threads.
@@ -51,6 +59,15 @@ public:
 	/// Can be safely called from other threads.
 	void stopScript();
 
+	/// Report known objects and methods for autocompletion
+	QStringList knownNames() const;
+
+	/// Changes mWorkingDirectory var.
+	void setWorkingDirectory(const QDir &workingDir);
+
+	/// Blocks the Thread with QSemaphore until init() method releases it.
+	void waitUntilInited();
+
 signals:
 	/// Emitted when current script execution is completed or is aborted by reset() call.
 	/// @param error - localized error message or empty string.
@@ -59,7 +76,14 @@ signals:
 
 	/// Emitted when new script is started.
 	/// @param scriptId - unique identifier assigned to a newly started script.
-	void startedScript(int scriptId);
+	void startedScript(const QString &fileName, int scriptId);
+
+	/// Emitted when new direct script is started.
+	/// @param scriptId - unique identifier assigned to a newly started script.
+	void startedDirectScript(int scriptId);
+
+	/// Some message to send, for example, from stdout
+	void textInStdOut(const QString&);
 
 public slots:
 	/// Starts script evaluation, emits startedScript() signal and returns. Script will be executed asynchronously.
@@ -68,7 +92,7 @@ public slots:
 	/// by calling reset() first.
 	/// @param script - QtScript code to evaluate
 	/// Can be safely called from other threads.
-	void run(const QString &script);
+	void run(const QString &script, const QFileInfo &scriptFile = QFileInfo());
 
 	/// Runs a command in a `current` context. Permits to run a script line by line.
 	/// The command will be executed asynchronously.
@@ -82,8 +106,8 @@ public slots:
 	/// Calls initTrik()
 	void init();
 
-	/// Recreates Main Context made by init
-	void recreateContext();
+	/// Recreates Main Context made by init, returns true when were errors
+	bool recreateContext();
 
 	/// Plays "beep" sound.
 	/// Can be safely called from other threads.
@@ -93,11 +117,11 @@ private slots:
 	/// Abort script execution.
 	void onScriptRequestingToQuit();
 
-	/// Adds trik object to main Python context
-	void initTrik();
+	/// Adds trik object to main Python context, returns true on success
+	bool initTrik();
 
 	/// Actually runs given script. Is to be called from a thread owning PythonEngineWorker.
-	void doRun(const QString &script);
+	void doRun(const QString &script, const QFileInfo &scriptFile);
 
 	/// Actually runs given command. Is to be called from a thread owning PythonEngineWorker.
 	void doRunDirect(const QString &command);
@@ -118,16 +142,20 @@ private:
 		, running
 	};
 
-	/// Evaluates "system.py" file in the current context.
-	void evalSystemPy();
+	/// Imports "TRIK.py" file in the current context, returns true on success
+	bool importTrikPy();
 
 	/// Turns the worker to a starting state, emits startedScript() signal.
 	void startScriptEvaluation(int scriptId);
 
-	trikControl::BrickInterface &mBrick;
-	trikNetwork::MailboxInterface * const mMailbox;  // Does not have ownership.
+	/// Adds @value path to the Python's sys.path array.
+	void addSearchModuleDirectory(const QDir &path);
 
-	State mState = State::ready;
+	trikControl::BrickInterface *mBrick {};
+	QSharedPointer<TrikScriptControlInterface> mScriptExecutionControl;
+	trikNetwork::MailboxInterface * const mMailbox {};  // Does not have ownership.
+
+	State mState  { State::ready };
 
 	/// Ensures that there is only one instance of StopScript running at any given time, to prevent unpredicted
 	/// behavior when programs are started and stopped actively.
@@ -135,7 +163,18 @@ private:
 
 	PythonQtObjectPtr mMainContext;
 
+	PyThreadState * mPyInterpreter { nullptr };
+
+	/// Directory that would be added to Python's sys.path var when any execution will start.
+	QDir mWorkingDirectory;
 	QString mErrorMessage;
+
+	QSemaphore mWaitForInitSemaphore {1};
+
+	wchar_t *mProgramName { nullptr };
+	wchar_t *mPythonPath { nullptr };
+
+	static QAtomicInt initCounter;
 };
 
 }

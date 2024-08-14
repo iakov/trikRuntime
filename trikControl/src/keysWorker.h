@@ -38,6 +38,9 @@ public:
 	KeysWorker(const QString &keysPath, DeviceState &state
 			, const trikHal::HardwareAbstractionInterface &hardwareAbstraction);
 
+	/// Execute init() after worker thread started.
+	void init();
+
 	/// Clear data about previous key pressures.
 	void reset();
 
@@ -54,12 +57,18 @@ signals:
 	/// @param value - key state.
 	void buttonPressed(int code, int value);
 
+	/// Triggers when everyone who waits for buttons events has to stop waiting.
+	void stopWaiting();
+
 private:
 	QScopedPointer<trikHal::EventFileInterface> mEventFile;
 	int mButtonCode = 0;
 	int mButtonValue = 0;
 	QSet<int> mWasPressed;
 	QReadWriteLock mLock;
+
+	const trikHal::HardwareAbstractionInterface &mHardwareAbstraction;
+	const QString mKeysPath;
 
 	/// Device state object, shared between worker and proxy.
 	DeviceState &mState;

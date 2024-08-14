@@ -25,11 +25,16 @@ static const int absMisc = 0x28;
 using namespace trikControl;
 
 RangeSensorWorker::RangeSensorWorker(const QString &eventFile, DeviceState &state
-		, const trikHal::HardwareAbstractionInterface &hardwareAbstraction)
+		, const trikHal::HardwareAbstractionInterface &hardwareAbstraction
+		, int minValue, int maxValue, const QString &filterName)
 	: mState(state)
 	, mHardwareAbstraction(hardwareAbstraction)
 	, mEventFileName(eventFile)
+	, mMinValue(minValue)
+	, mMaxValue(maxValue)
+	, mFilterName(filterName)
 {
+	mState.start();
 }
 
 RangeSensorWorker::~RangeSensorWorker()
@@ -65,12 +70,9 @@ void RangeSensorWorker::stop()
 
 void RangeSensorWorker::init()
 {
-	mState.start();
+	mEventFile.reset(mHardwareAbstraction.createEventFile(mEventFileName));
 
-	mEventFile.reset(mHardwareAbstraction.createEventFile(mEventFileName, *QThread::currentThread()));
-
-	connect(mEventFile.data(), SIGNAL(newEvent(int, int, int, trikKernel::TimeVal))
-			, this, SLOT(onNewEvent(int, int, int, trikKernel::TimeVal)));
+	connect(mEventFile.data(), &trikHal::EventFileInterface::newEvent, this, &RangeSensorWorker::onNewEvent);
 
 	if (mEventFile->open()) {
 		mState.ready();
@@ -82,6 +84,10 @@ void RangeSensorWorker::init()
 
 		// Sensor launch failed for some reason, assuming permanent failure.
 		mState.fail();
+	}
+
+	if (mFilterName == "median3") {
+		mDataFilter.reset(new DataFilter(mMinValue, mMaxValue, "median3"));
 	}
 }
 
@@ -96,7 +102,7 @@ void RangeSensorWorker::onNewEvent(int eventType, int code, int value, const tri
 	case evAbs:
 		switch (code) {
 		case absDistance:
-			mDistance = value;
+			mDistance = !mDataFilter ? value : mDataFilter->applyFilter(value);
 			break;
 		case absMisc:
 			mRawDistance = value;

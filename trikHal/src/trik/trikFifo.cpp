@@ -16,11 +16,11 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
+#include <cerrno>
+#include <termios.h>
 
 #include <QtCore/QSocketNotifier>
 #include <QtCore/QStringList>
-
 #include <QsLog.h>
 
 using namespace trikHal::trik;
@@ -38,16 +38,48 @@ TrikFifo::~TrikFifo()
 
 bool TrikFifo::open()
 {
-	mFileDescriptor = ::open(mFileName.toStdString().c_str(), O_RDONLY, O_NONBLOCK);
+	mFileDescriptor = ::open(mFileName.toStdString().c_str(), O_NOCTTY | O_RDWR | O_NONBLOCK | O_CLOEXEC);
 
 	if (mFileDescriptor == -1) {
-		QLOG_ERROR() << "Can't open FIFO file" << mFileName;
-		return false;
+		QLOG_ERROR() << "Failed to open FIFO file in read-write mode" << mFileName;
+		mFileDescriptor = ::open(mFileName.toStdString().c_str(), O_NOCTTY | O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (mFileDescriptor == -1) {
+			QLOG_ERROR() << "Failed to open FIFO file in read-only mode" << mFileName;
+			return false;
+		}
+	}
+
+	if (isatty(mFileDescriptor)) {
+		termios t {};
+		QLOG_INFO() << "Using tty as FIFO:" << mFileName;
+		if (tcgetattr(mFileDescriptor, &t)) {
+			QLOG_ERROR() << __PRETTY_FUNCTION__ << ": tcgetattr failed for" << mFileName;
+		} else {
+			t.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+			t.c_oflag &= ~(OPOST);
+			t.c_cflag |= CS8;
+			t.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+			t.c_cc[VMIN] = 1;
+			t.c_cc[VTIME] = 0;
+			termios t1 = t;
+			tcsetattr(mFileDescriptor, TCSANOW, &t);
+			if (tcgetattr(mFileDescriptor, &t1)
+					|| std::make_tuple(t.c_iflag, t.c_oflag, t.c_cflag, t.c_lflag)
+						!= std::make_tuple(t1.c_iflag, t1.c_oflag, t1.c_cflag, t1.c_lflag)) {
+				QLOG_ERROR() << __PRETTY_FUNCTION__ << ": tcsetattr failed for" << mFileName;
+			}
+			if (cfsetospeed (&t, B230400)) {
+				QLOG_ERROR() << __PRETTY_FUNCTION__ << ": cfsetospeed 230400 failed for" << mFileName;
+			}
+			if (cfsetispeed (&t, B230400)) {
+				QLOG_ERROR() << __PRETTY_FUNCTION__ << ": cfsetispeed 230400 failed for" << mFileName;
+			}
+		}
 	}
 
 	mSocketNotifier.reset(new QSocketNotifier(mFileDescriptor, QSocketNotifier::Read));
 
-	connect(mSocketNotifier.data(), SIGNAL(activated(int)), this, SLOT(readFile()));
+	connect(mSocketNotifier.data(), &QSocketNotifier::activated, this, &TrikFifo::readFile);
 	mSocketNotifier->setEnabled(true);
 
 	QLOG_INFO() << "Opened FIFO file" << mFileName;
@@ -56,26 +88,28 @@ bool TrikFifo::open()
 
 void TrikFifo::readFile()
 {
-	char data[4000] = {0};
-
+	QVector<uint8_t> bytes(4000);
 	mSocketNotifier->setEnabled(false);
-
-	if (::read(mFileDescriptor, &data, 4000) < 0) {
-		QLOG_ERROR() << "FIFO read failed: " << strerror(errno);
-		emit readError();
+	auto bytesRead = ::read(mFileDescriptor, bytes.data(), static_cast<size_t>(bytes.size()));
+	if (bytesRead < 0) {
+		if (errno != EAGAIN) {
+			QLOG_ERROR() << "FIFO read failed: " << strerror(errno) << "in" << mFileName;
+			emit readError();
+		}
+		mSocketNotifier->setEnabled(true);
 		return;
 	}
-
-	mBuffer += data;
-
+	bytes.resize(bytesRead);
+	emit newData(bytes);
+	mBuffer += QByteArray(reinterpret_cast<char*>(bytes.data()), bytes.size());
 	if (mBuffer.contains("\n")) {
 		QStringList lines = mBuffer.split('\n', QString::KeepEmptyParts);
 
 		mBuffer = lines.last();
 		lines.removeLast();
 
-		for (const QString &line : lines) {
-			emit newData(line);
+		for (auto &&line : lines) {
+			emit newLine(line);
 		}
 	}
 

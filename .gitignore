@@ -1,4 +1,5 @@
 */object_script.*
+scripts/vera++/params
 scripts/.pyenv-*
 *~
 .*.swp 
@@ -38,7 +39,11 @@ bin/*
 **/.build
 tests/minimalCppApp/*
 .qmake.stash
-
+.ccache
 # PKG config
 pkg-config_wrapper.sh
-
+/build/
+tests/**/target_wrapper.sh
+tests/**/rcc_wrapper.sh
+tests/**/moc_wrapper.sh
+tests/**/uic_wrapper.sh

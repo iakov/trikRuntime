@@ -16,15 +16,13 @@
 
 #include <QtCore/QString>
 #include <QtCore/QObject>
-
-namespace trikKernel {
-class TimeVal;
-}
+#include <trikKernel/timeVal.h>
+#include <trikHal/trikHalDeclSpec.h>
 
 namespace trikHal {
 
 /// Event file abstraction. Can be opened or closed, when opened can emit signal containing event data.
-class EventFileInterface : public QObject
+class TRIKHAL_EXPORT EventFileInterface : public QObject
 {
 	Q_OBJECT
 
@@ -49,7 +47,7 @@ signals:
 	/// @param eventType - low-level type of an event.
 	/// @param code - low-level event code.
 	/// @param value - low-level event value.
-	void newEvent(int eventType, int code, int value, const trikKernel::TimeVal &eventTime);
+	void newEvent(int eventType, int code, int value, trikKernel::TimeVal eventTime);
 };
 
 }

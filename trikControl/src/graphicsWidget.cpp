@@ -27,11 +27,8 @@
 using namespace trikControl;
 
 GraphicsWidget::GraphicsWidget()
-	: mCurrentPenColor(Qt::black)
-	, mCurrentPenWidth(0)
 {
 	setAutoFillBackground(true);
-	mFontMetrics.reset(new QFontMetrics(font()));
 }
 
 GraphicsWidget::~GraphicsWidget()
@@ -65,11 +62,20 @@ void GraphicsWidget::paintEvent(QPaintEvent *paintEvent)
 		shape->draw(&painter);
 	}
 
-	for (const QPair<int, int> &position : mLabels.keys()) {
+	for (const auto & position : mLabels.keys()) {
 		painter.setPen(mCurrentPenColor);
-		const QString text = mLabels[position];
-		painter.drawText(position.first, position.second, mFontMetrics->width(text), mFontMetrics->height()
-				, Qt::TextWordWrap, text);
+		auto & textObject = mLabels[position];
+		QFontMetrics fontMetrics(textObject.font);
+		painter.setPen(textObject.currentPenColor);
+		painter.setFont(textObject.font);
+		painter.drawText(position.first, position.second
+#if (QT_VERSION_MAJOR == 5) && (QT_VERSION_MINOR < 11)
+				, fontMetrics.width(textObject.text)
+#else
+				, fontMetrics.horizontalAdvance(textObject.text)
+#endif
+				, fontMetrics.height()
+				, Qt::TextWordWrap, textObject.text);
 	}
 }
 
@@ -123,27 +129,19 @@ void GraphicsWidget::drawArc(int x, int y, int width, int height, int startAngle
 
 void GraphicsWidget::addShape(Shape *shape)
 {
-	bool found = false;
-	for (const Shape *element : mElements) {
-		if (element && element->equals(shape)) {
-			found = true;
-			break;
-		}
-	}
-
-	if (found) {
-		delete shape;
-	} else {
+	auto found = std::find_if(mElements.begin(), mElements.end(), [=](Shape *x) { return x->equals(shape);});
+	if (found == mElements.end())
 		mElements << shape;
-	}
+	else *found = shape;
 }
 
-void GraphicsWidget::addLabel(const QString &text, int x, int y)
+void GraphicsWidget::addLabel(const QString &text, int x, int y, int fontSize)
 {
-	mLabels[qMakePair(x, y)] = text;
+	TextObject newTextObject(text, mCurrentPenColor, fontSize);
+	mLabels[qMakePair(x, y)] = newTextObject;
 }
 
-void GraphicsWidget::setPixmap(const QPixmap &picture)
+void GraphicsWidget::setPixmap(QPixmap &&picture)
 {
 	mPicture = picture;
 }

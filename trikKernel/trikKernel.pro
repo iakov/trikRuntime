@@ -39,6 +39,7 @@ HEADERS += \
 	$$PWD/include/trikKernel/exceptions/internalErrorException.h \
 	$$PWD/include/trikKernel/exceptions/malformedConfigException.h \
 	$$PWD/include/trikKernel/exceptions/trikRuntimeException.h \
+	$$PWD/include/trikKernel/trikKernelDeclSpec.h
 
 SOURCES += \
 	$$PWD/src/applicationInitHelper.cpp \
@@ -49,26 +50,30 @@ SOURCES += \
 	$$PWD/src/fileUtils.cpp \
 	$$PWD/src/loggingHelper.cpp \
 	$$PWD/src/rcReader.cpp \
-	$$PWD/src/timeVal.cpp \
 	$$PWD/src/translationsHelper.cpp \
-	$$PWD/src/$$PLATFORM/coreDumping.cpp \
+
 
 OTHER_FILES += \
 	$$PWD/stubTrikRc \
 
-equals(ARCHITECTURE, arm) {
-	SOURCES += $$PWD/src/trik/paths.cpp
+!trik_not_brick {
+	SOURCES += \
+		$$PWD/src/paths.cpp \
+                $$PWD/src/coreDumping.cpp \
 } else {
-	SOURCES += $$PWD/src/stub/paths.cpp
+	SOURCES += \
+		$$PWD/src/paths_stub.cpp \
+                $$PWD/src/coreDumping_stub.cpp \
 
 	copyToDestdir($$PWD/stubTrikRc, now)
+	copyToDestdir($$PWD/stubHostname, now)
 }
 
 DEFINES += TRIKKERNEL_LIBRARY
 
-TRANSLATIONS = \
-	$$PWD/../translations/ru/trikKernel_ru.ts \
-	$$PWD/../translations/fr/trikKernel_fr.ts \
+#TRANSLATIONS += \
+#    $$PWD/../translations/trikRuntime_fr.ts \
+#    $$PWD/../translations/trikRuntime_ru.ts \
 
-links(qslog)
+links(trikRuntimeQsLog)
 installs()

@@ -34,13 +34,17 @@ Keys::Keys(const trikKernel::Configurer &configurer, const trikHal::HardwareAbst
 {
 	mKeysWorker.reset(new KeysWorker(configurer.attributeByDevice("keys", "deviceFile"), mState, hardwareAbstraction));
 	if (!mState.isFailed()) {
-		connect(mKeysWorker.data(), SIGNAL(buttonPressed(int, int)), this, SIGNAL(buttonPressed(int, int)));
-		connect(mKeysWorker.data(), SIGNAL(buttonPressed(int, int)), this, SLOT(changeButtonState(int, int)));
 		mKeysWorker->moveToThread(&mWorkerThread);
+
+		connect(mKeysWorker.data(), &KeysWorker::buttonPressed, this, &Keys::buttonPressed);
+		connect(mKeysWorker.data(), &KeysWorker::buttonPressed, this, &Keys::changeButtonState);
+		connect(&mWorkerThread, &QThread::started, mKeysWorker.data(), &KeysWorker::init);
 
 		QLOG_INFO() << "Starting Keys worker thread" << &mWorkerThread;
 
+		mWorkerThread.setObjectName(mKeysWorker->metaObject()->className());
 		mWorkerThread.start();
+
 		mState.ready();
 	}
 }
@@ -61,6 +65,7 @@ Keys::Status Keys::status() const
 void Keys::reset()
 {
 	mKeysWorker->reset();
+	mKeysPressed.clear();
 }
 
 bool Keys::wasPressed(int code)
@@ -76,23 +81,19 @@ bool Keys::isPressed(int code)
 void Keys::changeButtonState(int code, int value)
 {
 	mKeysPressed[code] = value;
+	emit buttonStateChanged();
 }
 
 int Keys::buttonCode(bool wait)
 {
-	if (!wait) {
-		return pressedButton();
+	if (wait) {
+		QEventLoop l;
+		connect(this, &Keys::buttonStateChanged, &l, &QEventLoop::quit);
+		connect(mKeysWorker.data(), &KeysWorker::stopWaiting, &l, &QEventLoop::quit);
+		l.exec();
 	}
 
-	while (true) {
-		int code = pressedButton();
-		if (code == -1) {
-			usleep(20);
-			QApplication::processEvents();
-		} else {
-			return code;
-		}
-	}
+	return pressedButton();
 }
 
 int Keys::pressedButton()

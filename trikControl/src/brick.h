@@ -53,6 +53,8 @@ class TonePlayer;
 class VectorSensor;
 class CameraDeviceInterface;
 class I2cCommunicator;
+class Lidar;
+class IrCameraInterface;
 
 /// Class representing TRIK controller board and devices installed on it, also provides access
 /// to peripherals like motors and sensors.
@@ -101,6 +103,8 @@ public slots:
 
 	SensorInterface *sensor(const QString &port) override;
 
+	LidarInterface *lidar() override;
+
 	QStringList motorPorts(MotorInterface::Type type) const override;
 
 	QStringList pwmCapturePorts() const override;
@@ -141,6 +145,8 @@ public slots:
 
 	MarkerInterface *marker() override;
 
+	IrCameraInterface *irCamera() override;
+
 	EventDeviceInterface *eventDevice(const QString &deviceFile) override;
 
 	void stopEventDevice(const QString &deviceFile) override;
@@ -173,6 +179,7 @@ private:
 	QScopedPointer<Gamepad> mGamepad;
 	QScopedPointer<TonePlayer> mTonePlayer;
 	QScopedPointer<CameraDeviceInterface> mCamera;
+	QScopedPointer<IrCameraInterface> mIrCamera;
 
 	QHash<QString, ServoMotor *> mServoMotors;  // Has ownership.
 	QHash<QString, PwmCapture *> mPwmCaptures;  // Has ownership.
@@ -185,6 +192,7 @@ private:
 	QHash<QString, ColorSensor *> mColorSensors;  // Has ownership.
 	QHash<QString, ObjectSensor *> mObjectSensors;  // Has ownership.
 	QHash<QString, SoundSensor *> mSoundSensors;  // Has ownership.
+	QHash<QString, Lidar *> mLidars;  // Has ownership.
 	QHash<QString, Fifo *> mFifos;  // Has ownership.
 	QHash<QString, EventDeviceInterface *> mEventDevices;  // Has ownership.
 	QHash<uint16_t, I2cDeviceInterface *> mI2cDevices;  // Has ownership.

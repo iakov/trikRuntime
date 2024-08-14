@@ -18,7 +18,7 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
+#include <cerrno>
 
 #include <trikHal/hardwareAbstractionInterface.h>
 
@@ -62,7 +62,7 @@ void AbstractVirtualSensorWorker::init()
 {
 	mOutputFifo.reset(mHardwareAbstraction.createFifo(mOutputFile));
 
-	if (mState.isReady() && QFileInfo(mInputFile->fileName()).exists() && QFileInfo(mOutputFifo->fileName()).exists()) {
+	if (mState.isReady() && QFileInfo::exists(mInputFile->fileName()) && QFileInfo::exists(mOutputFifo->fileName())) {
 		// Sensor is up and ready.
 		QLOG_ERROR() << "Trying to init video sensor that is already running, ignoring";
 		return;
@@ -75,7 +75,7 @@ void AbstractVirtualSensorWorker::init()
 	}
 
 	mState.start();
-	if (!QFileInfo(mInputFile->fileName()).exists() || !QFileInfo(mOutputFifo->fileName()).exists()) {
+	if (!QFileInfo::exists(mInputFile->fileName()) || !QFileInfo::exists(mOutputFifo->fileName())) {
 		// Sensor is down.
 		startVirtualSensor();
 	} else {
@@ -126,7 +126,8 @@ void AbstractVirtualSensorWorker::openFifos()
 
 	QLOG_INFO() << "Opening" << mOutputFifo->fileName();
 
-	connect(mOutputFifo.data(), SIGNAL(newData(QString)), this, SLOT(onNewDataInOutputFifo(QString)));
+	connect(mOutputFifo.data(), &trikHal::FifoInterface::newLine
+			, this, &AbstractVirtualSensorWorker::onNewDataInOutputFifo);
 
 	if (!mOutputFifo->open()) {
 		mState.fail();

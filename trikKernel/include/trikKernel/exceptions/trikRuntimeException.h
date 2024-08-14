@@ -15,14 +15,24 @@
 #pragma once
 
 #include <exception>
+#include <QString>
+#include <QsLog.h>
+#include <trikKernel/trikKernelDeclSpec.h>
 
 namespace trikKernel {
 
 /// Base class for all exceptions in TRIKRuntime.
-class TrikRuntimeException : public std::exception
+class TrikRuntimeException : public std::runtime_error
 {
 public:
-	virtual ~TrikRuntimeException() {}
+	/// Constructor
+	/// @param msg - message to be returned
+	explicit TrikRuntimeException(const QString &msg)
+		: std::runtime_error(msg.toStdString())
+	{
+		/// Print before processing the exception
+		QLOG_ERROR() << what();
+	}
 };
 
 }

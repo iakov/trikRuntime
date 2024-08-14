@@ -26,9 +26,8 @@
 
 using namespace trikScriptRunner;
 
-Threading::Threading(ScriptEngineWorker *scriptWorker, ScriptExecutionControl &scriptControl)
+Threading::Threading(ScriptEngineWorker *scriptWorker, TrikScriptControlInterface &scriptControl)
 	: QObject(scriptWorker)
-	, mResetStarted(false)
 	, mScriptWorker(scriptWorker)
 	, mScriptControl(scriptControl)
 	, mMainScriptEngine(nullptr)
@@ -47,7 +46,7 @@ void Threading::startMainThread(const QString &script)
 	mFinishedThreads.clear();
 	mPreventFromStart.clear();
 
-	const QRegExp mainRegexp("(.*var main\\s*=\\s*\\w*\\s*function\\(.*\\).*)|(.*function\\s+%1\\s*\\(.*\\).*)");
+	const QRegExp mainRegexp(R"#((.*var main\s*=\s*\w*\s*function\(.*\).*)|(.*function\s+%1\s*\(.*\).*))#");
 	const bool needCallMain = mainRegexp.exactMatch(script) && !script.trimmed().endsWith("main();");
 
 	mMainScriptEngine = mScriptWorker->createScriptEngine();
@@ -61,22 +60,19 @@ void Threading::startThread(const QScriptValue &threadId, const QScriptValue &fu
 
 void Threading::startThread(const QString &threadId, QScriptEngine *engine, const QString &script)
 {
-	mResetMutex.lock();
+	QMutexLocker resetMutexLocker(&mResetMutex);
 
 	if (mResetStarted) {
 		QLOG_INFO() << "Threading: can't start new thread" << threadId << "with engine" << engine << "due to reset";
 		delete engine;
-		mResetMutex.unlock();
 		return;
 	}
 
-	mThreadsMutex.lock();
+	QMutexLocker threadsMutexLocker(&mThreadsMutex);
 	if (mThreads.contains(threadId)) {
 		QLOG_ERROR() << "Threading: attempt to create a thread with an already occupied id" << threadId;
 		mErrorMessage = tr("Attempt to create a thread with an already occupied id %1").arg(threadId);
 		mThreads[threadId]->abort();
-		mThreadsMutex.unlock();
-		mResetMutex.unlock();
 		return;
 	}
 
@@ -84,76 +80,65 @@ void Threading::startThread(const QString &threadId, QScriptEngine *engine, cons
 		QLOG_INFO() << "Threading: attempt to create a thread which must be killed" << threadId;
 		mPreventFromStart.remove(threadId);
 		mFinishedThreads.insert(threadId);
-		mThreadsMutex.unlock();
-		mResetMutex.unlock();
 		return;
 	}
 
 	QLOG_INFO() << "Starting new thread" << threadId << "with engine" << engine;
-	ScriptThread * const thread = new ScriptThread(*this, threadId, engine, script);
-	connect(&mScriptControl, SIGNAL(quitSignal()), thread, SIGNAL(stopRunning()), Qt::DirectConnection);
-	if (threadId == mMainThreadName) {
-		connect(this, SIGNAL(getVariables(QString)), thread, SLOT(onGetVariables(QString)));
-		connect(thread, SIGNAL(variablesReady(QJsonObject)), this, SIGNAL(variablesReady(QJsonObject)));
-	}
-	mThreads[threadId] = thread;
-	mFinishedThreads.remove(threadId);
-	mThreadsMutex.unlock();
-
+	auto thread = new ScriptThread(*this, threadId, engine, script);
 	engine->moveToThread(thread);
-	connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
+
+	connect(thread, &QThread::finished, this, [this, threadId](){ threadFinished(threadId); });
+	connect(&mScriptControl, &TrikScriptControlInterface::quitSignal, thread
+			, &ScriptThread::stopRunning, Qt::DirectConnection);
+	if (threadId == mMainThreadName) {
+		connect(this, &Threading::getVariables, thread, &ScriptThread::onGetVariables);
+		connect(thread, &ScriptThread::variablesReady, this, &Threading::variablesReady);
+	}
+
+	mThreads[threadId].reset(thread);
+	mFinishedThreads.remove(threadId);
+
 	QEventLoop wait;
-	connect(thread, SIGNAL(started()), &wait, SLOT(quit()));
+	connect(thread, &QThread::started, &wait, &QEventLoop::quit);
+
+	thread->setObjectName(engine->metaObject()->className());
 	thread->start();
 	wait.exec();
-
 	QLOG_INFO() << "Threading: started thread" << threadId << "with engine" << engine << ", thread object" << thread;
-	mResetMutex.unlock();
 }
 
 void Threading::waitForAll()
 {
 	QEventLoop wait;
-	connect(this, SIGNAL(finished()), &wait, SLOT(quit()));
+	connect(this, &Threading::finished, &wait, &QEventLoop::quit);
 	mThreadsMutex.lock();
 	auto hasThreads = !mThreads.isEmpty();
 	mThreadsMutex.unlock();
-	if (hasThreads) {	
+	if (hasThreads) {
 		wait.exec();
-	}
-}
-
-void Threading::waitForAllYielding()
-{
-	while (!mThreads.isEmpty()) {
-		QThread::yieldCurrentThread();
 	}
 }
 
 void Threading::joinThread(const QString &threadId)
 {
-	mThreadsMutex.lock();
+	QMutexLocker threadsMutexLocker(&mThreadsMutex);
 
 	while ((!mThreads.contains(threadId) || !mThreads[threadId]->isRunning())
 			&& !mFinishedThreads.contains(threadId))
 	{
-		mThreadsMutex.unlock();
 		if (mResetStarted) {
 			return;
 		}
-
+		threadsMutexLocker.unlock();
 		QThread::yieldCurrentThread();
-		mThreadsMutex.lock();
+		threadsMutexLocker.relock();
 	}
 
 	if (mFinishedThreads.contains(threadId)) {
-		mThreadsMutex.unlock();
 		return;
 	}
 
-	ScriptThread *thread = mThreads[threadId];
-	mThreadsMutex.unlock();
-	thread->wait();
+	mThreads[threadId]->wait();
 }
 
 QScriptEngine * Threading::cloneEngine(QScriptEngine *engine)
@@ -174,14 +159,14 @@ void Threading::reset()
 	QLOG_INFO() << "Threading: reset started";
 
 	mMessageMutex.lock();
-	for (QWaitCondition * const condition : mMessageQueueConditions.values()) {
+	for (auto &&condition : mMessageQueueConditions) {
 		condition->wakeAll();
 	}
 
 	mMessageMutex.unlock();
 	mThreadsMutex.lock();
 
-	for (ScriptThread *thread : mThreads.values()) {
+	for (auto &&thread : mThreads) {
 		mScriptControl.reset();  // TODO: find more sophisticated solution to prevent waiting after abortion
 		thread->abort();
 	}
@@ -190,7 +175,7 @@ void Threading::reset()
 	mThreadsMutex.unlock();
 	mScriptControl.reset();
 
-	waitForAllYielding();
+	waitForAll();
 
 	qDeleteAll(mMessageQueueMutexes);
 	qDeleteAll(mMessageQueueConditions);
@@ -218,12 +203,12 @@ void Threading::threadFinished(const QString &id)
 	mThreadsMutex.unlock();
 	mResetMutex.unlock();
 
-	if (mThreads.isEmpty()) {
-		emit finished();
-	}
-
 	if (!mErrorMessage.isEmpty()) {
 		reset();
+	}
+
+	if (mThreads.isEmpty()) {
+		emit finished();
 	}
 }
 
@@ -252,7 +237,7 @@ QScriptValue Threading::receiveMessage(bool waitForMessage)
 		return QScriptValue();
 	}
 
-	QString threadId = static_cast<ScriptThread *>(QThread::currentThread())->id();
+	QString threadId = qobject_cast<ScriptThread *>(QThread::currentThread())->id();
 	mMessageMutex.lock();
 	if (!mMessageQueueConditions.contains(threadId)) {
 		mMessageQueueMutexes[threadId] = new QMutex();

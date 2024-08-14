@@ -24,7 +24,7 @@
 namespace trikKernel {
 
 /// Exception that is thrown when XML file is corrupt and "setContent" method of QDomDocument has failed.
-class FailedToParseXmlException : public TrikRuntimeException
+class TRIKKERNEL_EXPORT FailedToParseXmlException : public TrikRuntimeException
 {
 public:
 	/// Constructor.
@@ -33,13 +33,13 @@ public:
 	/// @param errorLine - line in XML document where error occured.
 	/// @param errorColumn - column in XML document where error occured.
 	FailedToParseXmlException(const QFile &file, const QString &errorMessage, int errorLine, int errorColumn)
-		: mFile(file), mErrorMessage(errorMessage), mErrorLine(errorLine), mErrorColumn(errorColumn)
+		: TrikRuntimeException(QString("Failed to parse %1, %2:%3 - %4")
+							   .arg(file.fileName())
+							   .arg(errorLine)
+							   .arg(errorColumn)
+							   .arg(errorMessage))
+		, mFile(file), mErrorMessage(errorMessage), mErrorLine(errorLine), mErrorColumn(errorColumn)
 	{
-		QLOG_ERROR() << QString("Failed to parse %1, %2:%3 - %4")
-				.arg(file.fileName())
-				.arg(errorLine)
-				.arg(errorColumn)
-				.arg(errorMessage);
 	}
 
 	/// Returns XML file that is failed to parse.

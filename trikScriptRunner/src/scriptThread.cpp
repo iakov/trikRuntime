@@ -45,24 +45,29 @@ void ScriptThread::run()
 	mEngine->evaluate(mScript);
 
 	if (mEngine->hasUncaughtException()) {
-		const int line = mEngine->uncaughtExceptionLineNumber();
-		const QString message = mEngine->uncaughtException().toString();
+		const auto line = mEngine->uncaughtExceptionLineNumber();
+		const auto &message = mEngine->uncaughtException().toString();
+		const auto &backtrace = mEngine->uncaughtExceptionBacktrace();
 		mError = tr("Line %1: %2").arg(QString::number(line), message);
-		QLOG_ERROR() << "Uncaught exception at line" << line << ":" << message;
+		if (!backtrace.isEmpty()) {
+			mError += "\n" + backtrace.join('\n');
+		}
+		QLOG_ERROR() << "Uncaught exception with next backtrace" << backtrace;
 	} else if (mThreading.inEventDrivenMode()) {
 		QEventLoop loop;
-		connect(this, SIGNAL(stopRunning()), &loop, SLOT(quit()), Qt::QueuedConnection);
+		connect(this, &ScriptThread::stopRunning, &loop, &QEventLoop::quit, Qt::QueuedConnection);
 		loop.exec();
 	}
 
-	mEngine->deleteLater();
-	mThreading.threadFinished(mId);
+	mEngine.reset();
 	QLOG_INFO() << "Ended evaluation, thread" << this;
 }
 
 void ScriptThread::abort()
 {
-	mEngine->abortEvaluation();
+	if (isEvaluating()) {
+		mEngine->abortEvaluation();
+	}
 	emit stopRunning();
 }
 
@@ -78,9 +83,11 @@ QString ScriptThread::error() const
 
 bool ScriptThread::isEvaluating() const
 {
-	return mEngine->isEvaluating();
+	return mEngine && mEngine->isEvaluating();
 }
 
+// TODO: Fix design error. This slot is called on wrong thread (probably)
+// mEngine must be accessed from the correct worker thread instead
 void ScriptThread::onGetVariables(const QString &propertyName)
 {
 	if (mEngine != nullptr) {

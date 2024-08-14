@@ -18,7 +18,7 @@ include(../global.pri)
 
 PUBLIC_HEADERS += \
 	$$PWD/include/trikNetwork/connection.h \
-	$$PWD/include/trikNetwork/declSpec.h \
+	$$PWD/include/trikNetwork/trikNetworkDeclSpec.h \
 	$$PWD/include/trikNetwork/mailboxFactory.h \
 	$$PWD/include/trikNetwork/mailboxInterface.h \
 	$$PWD/include/trikNetwork/trikServer.h \
@@ -37,13 +37,12 @@ SOURCES += \
 	$$PWD/src/trikServer.cpp \
 
 INCLUDEPATH += $$PWD/include \
-	$$PWD/../qslog \
 	$$PWD/../trikKernel/include \
 
 QT += network
 
 DEFINES += TRIKNETWORK_LIBRARY
 
-links(qslog trikKernel)
+links(trikRuntimeQsLog trikKernel)
 
 installs()

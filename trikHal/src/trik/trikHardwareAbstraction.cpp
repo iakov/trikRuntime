@@ -21,6 +21,7 @@
 #include "trikInputDeviceFile.h"
 #include "trikOutputDeviceFile.h"
 #include "trikFifo.h"
+#include "trikIIOFile.h"
 #include "QsLog.h"
 
 #include "trikV4l2VideoDevice.h"
@@ -54,14 +55,19 @@ SystemConsoleInterface &TrikHardwareAbstraction::systemConsole()
 	return *mSystemConsole.data();
 }
 
-EventFileInterface *TrikHardwareAbstraction::createEventFile(const QString &fileName, QThread &thread) const
+EventFileInterface *TrikHardwareAbstraction::createEventFile(const QString &fileName) const
 {
-	return new TrikEventFile(fileName, thread);
+	return new TrikEventFile(fileName);
 }
 
 FifoInterface *TrikHardwareAbstraction::createFifo(const QString &fileName) const
 {
 	return new TrikFifo(fileName);
+}
+
+IIOFileInterface *TrikHardwareAbstraction::createIIOFile(const QString &fileName) const
+{
+	return new TrikIIOFile(fileName);
 }
 
 InputDeviceFileInterface *TrikHardwareAbstraction::createInputDeviceFile(const QString &fileName) const
@@ -74,7 +80,7 @@ OutputDeviceFileInterface *TrikHardwareAbstraction::createOutputDeviceFile(const
 	return new TrikOutputDeviceFile(fileName);
 }
 
-QVector<uint8_t> TrikHardwareAbstraction::captureV4l2StillImage(const QString &port, const QString &pathToPic) const
+QVector<uint8_t> TrikHardwareAbstraction::captureV4l2StillImage(const QString &port, const QDir &pathToPic) const
 {
 	Q_UNUSED(pathToPic);
 	TrikV4l2VideoDevice device(port); // need only one camera device

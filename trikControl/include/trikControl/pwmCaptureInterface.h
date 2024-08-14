@@ -19,7 +19,7 @@
 
 #include "deviceInterface.h"
 
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -28,12 +28,24 @@ class TRIKCONTROL_EXPORT PwmCaptureInterface : public QObject, public DeviceInte
 {
 	Q_OBJECT
 
+public:
+	/// Gets minimal possible value for PWM capture reading received by duty() slot.
+	virtual long minValue() const = 0;
+
+	/// Gets maximal possible value for PWM capture reading received by duty() slot.
+	virtual long maxValue() const = 0;
+
 public slots:
 	/// Returns three readings of PWM signal frequency.
 	virtual QVector<int> frequency() = 0;
 
-	/// Returns PWM signal duty.
-	virtual int duty() = 0;
+	/// Returns scaled PWM signal duty.
+	virtual long duty() = 0;
+
+	/// Returns raw PWM signal duty.
+	virtual long dutyRaw() = 0;
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::PwmCaptureInterface *)

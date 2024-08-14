@@ -15,7 +15,9 @@
 #pragma once
 
 #include "trikScriptRunnerInterface.h"
-#include "trikPythonRunner.h"
+#include "trikScriptControlInterface.h"
+
+#include <QPointer>
 
 namespace trikNetwork {
 class MailboxInterface;
@@ -31,38 +33,36 @@ namespace trikScriptRunner {
 class PythonEngineWorker;
 
 /// Executes scripts in Python Engine.
-class TrikPythonRunner : public TrikScriptRunnerInterface
+class TRIKSCRIPTRUNNER_EXPORT TrikPythonRunner : public TrikScriptRunnerInterface
 {
 	Q_OBJECT
 public:
 	/// Constructor.
 	/// @param brick - reference to trikControl::Brick instance.
 	/// @param mailbox - mailbox object used to communicate with other robots.
-	TrikPythonRunner(trikControl::BrickInterface &brick
-					 , trikNetwork::MailboxInterface * const mailbox
+
+	TrikPythonRunner(trikControl::BrickInterface *brick, trikNetwork::MailboxInterface * mailbox
+					 , QSharedPointer<TrikScriptControlInterface> scriptControl
 					 );
 
-	~TrikPythonRunner();
+	~TrikPythonRunner() override;
 
 	void registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function) override;
 	void addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step) override;
 	QStringList knownMethodNames() const override;
+	bool wasError() override;
 
 public slots:
 	void run(const QString &script, const QString &fileName = "") override;
 	void runDirectCommand(const QString &command) override;
 	void abort() override;
 	void brickBeep() override;
-
-private slots:
-	void onScriptStart(int scriptId);
-
-	/// Sends message to host machine from mailbox via wifi.
-	void sendMessageFromMailBox(int senderNumber, const QString &message);
+	void setWorkingDirectory(const QString &workingDir) override;
 
 private:
+
 	/// Has ownership, memory is managed by thread and deleteLater().
-	PythonEngineWorker *mScriptEngineWorker;
+	QPointer<PythonEngineWorker> mScriptEngineWorker;
 	QThread mWorkerThread;
 };
 

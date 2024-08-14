@@ -15,14 +15,18 @@
 #pragma once
 
 #include <QtCore/QByteArray>
+#include <trikHal/trikHalDeclSpec.h>
 
 namespace trikHal {
 
 /// Communicates with MSP processor over I2C bus.
-class MspI2cInterface
+class TRIKHAL_EXPORT MspI2cInterface
 {
+	Q_DISABLE_COPY(MspI2cInterface)
 public:
-	virtual ~MspI2cInterface() {}
+	MspI2cInterface() = default;
+
+	virtual ~MspI2cInterface() = default;
 
 	/// Send data to a device.
 	virtual void send(const QByteArray &data) = 0;

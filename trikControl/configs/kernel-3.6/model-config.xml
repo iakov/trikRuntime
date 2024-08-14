@@ -71,6 +71,9 @@ Note that device, even if listed here, may fail by itself, then it also will not
 	<D2>
 		<sonarSensor />
 	</D2>
+        <D3>
+                <sonarSensor />
+        </D3>                   
 	<!--
 	<D3>
 		<volumeSensor />
@@ -93,16 +96,16 @@ Note that device, even if listed here, may fail by itself, then it also will not
 
 	<!-- Power motor ports. -->
 	<M1>
-		<motor350 />
+		<motor100 />
 	</M1>
 	<M2>
-		<motor350 />
+		<motor100 />
 	</M2>
 	<M3>
-		<motor350 />
+		<motor100 />
 	</M3>
 	<M4>
-		<motor350 />
+		<motor100 />
 	</M4>
 
 	<!-- Video sensor ports. -->
@@ -130,4 +133,11 @@ Note that device, even if listed here, may fail by itself, then it also will not
 		<fifo />
 	</soundSensor>
 	-->
+	<lidarPort>
+		<lidar file="/dev/ttyS1" />
+	</lidarPort>
+
+	<irCameraPort>
+		<irCamera />
+	</irCameraPort>
 </config>

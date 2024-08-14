@@ -15,14 +15,17 @@
 #pragma once
 
 #include <QtCore/QTextStream>
+#include <trikHal/trikHalDeclSpec.h>
 
 namespace trikHal {
 
 /// Input device file abstraction. Can read from a device file, thus communicating with a device driver.
-class InputDeviceFileInterface
+class TRIKHAL_EXPORT InputDeviceFileInterface
 {
+	Q_DISABLE_COPY(InputDeviceFileInterface)
 public:
-	virtual ~InputDeviceFileInterface() {}
+	InputDeviceFileInterface() = default;
+	virtual ~InputDeviceFileInterface() = default;
 
 	/// Open a file. File name must be set previously.
 	virtual bool open() = 0;

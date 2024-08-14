@@ -24,7 +24,7 @@
 using convertFunctionPtr = QVector<uint8_t> (*)(const QVector<uint8_t> &realCameraShot, int height, int width);
 
 /// Class for working with a camera on a TRIK controller
-class TrikV4l2VideoDevice: QObject
+class TrikV4l2VideoDevice: public QObject
 {
 	Q_OBJECT
 public:
@@ -70,8 +70,8 @@ private:
 	};
 	QVector<uint8_t> mFrame;
 	QVector<buffer> buffers;
-	v4l2_format mFormat;
-	QSocketNotifier *mNotifier {}; // Has ownership
+	v4l2_format mFormat {};
+	QScopedPointer<QSocketNotifier> mNotifier;
 	convertFunctionPtr mConvertFunc; // convert real camera shot to RGB888
 };
 

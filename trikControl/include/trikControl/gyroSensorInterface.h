@@ -17,13 +17,9 @@
 #include <QtCore/QObject>
 #include <QtCore/QVector>
 
-#include <trikKernel/timeVal.h>
 #include "vectorSensorInterface.h"
 
-#include "declSpec.h"
-namespace trikKernel {
-class TimeVal;
-}
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -60,3 +56,5 @@ public slots:
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::GyroSensorInterface *)

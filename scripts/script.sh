@@ -1,52 +1,44 @@
-#!/bin/bash
+#!/bin/bash -x
 set -euxo pipefail
 case $TRAVIS_OS_NAME in
   osx)
-    export PATH="/usr/local/opt/qt/bin:$PATH"
+#    export PATH="$TRIK_QT/5.12.7/clang_64/bin:$PATH"
     export PATH="/usr/local/opt/ccache/libexec:$PATH"
     export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
-    export PATH="$(pyenv root)/bin:$PATH"
-    eval "$(pyenv init -)"
-    export PKG_CONFIG_PATH="$(python3-config --prefix)/lib/pkgconfig"
-    EXECUTOR="scripts/with_pyenv "
+    export PATH="/usr/local/opt/qt/bin:$PATH"
+    EXECUTOR=
     ;;
   linux)
-    EXECUTOR="docker exec builder "
+    EXECUTOR="docker exec -e TRAVIS_COMMIT_RANGE=${TRAVIS_COMMIT_RANGE} --interactive builder "
    ;;
   *) exit 1 ;;
 esac
+export EXECUTOR
+if "$VERA" ; then $EXECUTOR ./runVera++.sh ; fi
 
-if [ "$VERA" = "true" ]; then $EXECUTOR ./runVera++.sh ; fi
-$EXECUTOR bash -ic "{ [ -r /root/.bashrc ] && source /root/.bashrc || true ; } ; \
+if [ "$TRANSLATIONS" = "true" ] ; then $EXECUTOR bash -lic 'lupdate trikRuntime.pro' && $EXECUTOR scripts/checkStatus.sh ; fi
+
+$EXECUTOR bash -lic " set -x; \
    export CCACHE_DIR=$HOME/.ccache/$TRAVIS_OS_NAME-$CONFIG \
 && export CCACHE_CPP2=yes \
 && export CCACHE_SLOPPINESS=time_macros \
-&& eval \"\`pyenv init -\`\" \
-&& eval 'export PKG_CONFIG_PATH=\`python3-config --prefix\`/lib/pkgconfig' \
+&& eval 'export PKG_CONFIG_PATH=\`python3.\${TRIK_PYTHON3_VERSION_MINOR}-config --prefix\`/lib/pkgconfig' \
 && which g++ \
 && g++ --version \
 && which qmake \
 && qmake -query \
 && ccache -M 0 \
-&& pyenv root \
-&& pyenv versions \
 && pkg-config --list-all \
 && { which python3 && python3 -V || true ; } \
 && { which python && python -V || true ; } \
-&&  cd $BUILDDIR && qmake -r CONFIG+=$CONFIG -Wall $TRAVIS_BUILD_DIR/trikRuntime.pro $QMAKE_EXTRA \
-&&  make -k -j2 \
-&& cd bin/x86-$CONFIG && ls "
+&&  cd $BUILDDIR && qmake -r PYTHON3_VERSION_MINOR=\$TRIK_PYTHON3_VERSION_MINOR CONFIG+=$CONFIG -Wall $TRAVIS_BUILD_DIR/trikRuntime.pro $QMAKE_EXTRA \
+&& env TRIK_PYTHONPATH=\`python3.\${TRIK_PYTHON3_VERSION_MINOR} -c 'import sys; import os; print(os.pathsep.join(sys.path))'\` \
+    DISPLAY=:0 \
+    PYTHONMALLOC=malloc \
+    ASAN_OPTIONS=disable_coredump=0:detect_stack_use_after_return=1:fast_unwind_on_malloc=0:symbolize=1:use_sigaltstack=0 \
+    LSAN_OPTIONS=suppressions=\$PWD/bin/lsan.supp:fast_unwind_on_malloc=0 \
+    MSAN_OPTIONS=poison_in_dtor=1 \
+    make check -k -j2 \
+&& ls bin/x86-$CONFIG"
 
-for t in trikKernelTests trikCameraPhotoTests trikCommunicatorTests trikScriptRunnerTests
-  do
-    $EXECUTOR env DISPLAY=:0 ASAN_OPTIONS=detect_leaks=0 LSAN_OPTIONS='detect_leaks=0 suppressions=asan.supp fast_unwind_on_malloc=0' sh -c \
-    "cd  $BUILDDIR/bin/x86-$CONFIG && \
-     { \
-       errCode=0 ; \
-       ulimit -c unlimited ; \
-       ./$t$SUFFIX || errCode=\$? ; \
-       [ "$TRAVIS_OS_NAME" = linux -a -e core ] && gdb ./$t$SUFFIX core -ex 'thread apply all bt' -ex 'quit'  || true ; \
-       rm -f core ; \
-       ( exit \$errCode ) ; \
-     } "
-  done
+#exec timeout -k 10s 100s scripts/runtests.sh trikKernelTests trikCameraPhotoTests trikCommunicatorTests trikJsRunnerTests trikPyRunnerTests

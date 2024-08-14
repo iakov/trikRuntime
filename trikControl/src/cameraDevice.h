@@ -17,9 +17,11 @@
 #include <QtCore/QScopedPointer>
 #include <QtCore/QVector>
 
+#include <QMutex>
+
 #include "cameraDeviceInterface.h"
 #include "cameraImplementationInterface.h"
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikKernel {
 class Configurer;
@@ -40,7 +42,7 @@ public:
 	/// @param mediaPath - path where program should save photos
 	/// @param configurer - configurer to get info from config
 	/// @param hardwareAbstraction - realization of HAL
-	CameraDevice(const QString & mediaPath
+	CameraDevice(const QString &port, const QString & mediaPath
 				 , const trikKernel::Configurer &configurer
 				 , trikHal::HardwareAbstractionInterface &hardwareAbstraction);
 
@@ -51,6 +53,7 @@ public:
 	~CameraDevice() override = default;
 
 private:
+	QMutex mCameraMutex;
 	QScopedPointer<CameraImplementationInterface> mCameraImpl;
 };
 

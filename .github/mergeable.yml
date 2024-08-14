@@ -1,0 +1,19 @@
+version: 2
+mergeable:
+  - when: pull_request.* , pull_request_review.*
+    validate:
+      - do: title
+        must_exclude:
+          regex: WIP
+      - do: label
+        must_exclude:
+          regex: 'wip'
+      - do: milestone
+        no_empty:
+          enabled: true
+
+  - when: issues.opened
+    validate:
+      - do: description
+        no_empty:
+          enabled: false

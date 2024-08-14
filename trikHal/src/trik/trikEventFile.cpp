@@ -29,11 +29,9 @@
 
 using namespace trikHal::trik;
 
-TrikEventFile::TrikEventFile(const QString &fileName, QThread &thread)
+TrikEventFile::TrikEventFile(const QString &fileName)
 	: mFileName(fileName)
-	, mThread(thread)
 {
-	moveToThread(&thread);
 }
 
 bool TrikEventFile::open()
@@ -45,10 +43,11 @@ bool TrikEventFile::open()
 		// Give driver some time to create event file.
 		mInitWaitingLoop.reset(new QEventLoop());
 		QTimer checkTimer;
-		QObject::connect(&checkTimer, SIGNAL(timeout()), this, SLOT(tryOpenEventFile()));
+		QObject::connect(&checkTimer, &QTimer::timeout, this, &TrikEventFile::tryOpenEventFile);
 		checkTimer.start(100);
 
-		QTimer::singleShot(2000, mInitWaitingLoop.data(), SLOT(quit()));
+		QTimer::singleShot(2000, mInitWaitingLoop.data(), &QEventLoop::quit);
+
 
 		mInitWaitingLoop->exec();
 	}
@@ -59,9 +58,8 @@ bool TrikEventFile::open()
 	}
 
 	mSocketNotifier.reset(new QSocketNotifier(mEventFileDescriptor, QSocketNotifier::Read));
-	mSocketNotifier->moveToThread(&mThread);
 
-	connect(mSocketNotifier.data(), SIGNAL(activated(int)), this, SLOT(readFile()));
+	connect(mSocketNotifier.data(), &QSocketNotifier::activated, this, &TrikEventFile::readFile);
 	mSocketNotifier->setEnabled(true);
 	return true;
 }
@@ -72,7 +70,7 @@ void TrikEventFile::tryOpenEventFile()
 		return;
 	}
 
-	mEventFileDescriptor = ::open(mFileName.toStdString().c_str(), O_SYNC | O_NONBLOCK, O_RDONLY);
+	mEventFileDescriptor = ::open(mFileName.toStdString().c_str(), O_SYNC | O_NONBLOCK | O_RDONLY | O_CLOEXEC);
 
 	if (mEventFileDescriptor != -1 && !mInitWaitingLoop.isNull() && mInitWaitingLoop->isRunning()) {
 		mInitWaitingLoop->quit();
@@ -86,12 +84,12 @@ bool TrikEventFile::close()
 	}
 
 	if (mSocketNotifier) {
-		disconnect(mSocketNotifier.data(), SIGNAL(activated(int)), this, SLOT(readFile()));
+		disconnect(mSocketNotifier.data(), &QSocketNotifier::activated, this, &TrikEventFile::readFile);
 		mSocketNotifier->setEnabled(false);
 	}
 
 	if (::close(mEventFileDescriptor) != 0) {
-		QLOG_ERROR() << QString("%1: close failed: %2").arg(mFileName).arg(strerror(errno));
+		QLOG_ERROR() << QString("%1: close failed: %2").arg(mFileName, strerror(errno));
 		return false;
 	}
 
@@ -111,12 +109,12 @@ QString TrikEventFile::fileName() const
 
 void TrikEventFile::readFile()
 {
-	struct input_event event;
+	struct input_event event {};
 	int size = 0;
 
 	mSocketNotifier->setEnabled(false);
 
-	while ((size = ::read(mEventFileDescriptor, reinterpret_cast<char *>(&event), sizeof(event)))
+	while ((size = ::read(mEventFileDescriptor, static_cast<void*>(&event), sizeof(event)))
 			== static_cast<int>(sizeof(event)))
 	{
 		trikKernel::TimeVal eventTime(event.time.tv_sec, event.time.tv_usec);

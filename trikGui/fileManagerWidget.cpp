@@ -39,6 +39,7 @@ using namespace trikGui;
 FileManagerWidget::FileManagerWidget(Controller &controller, MainWidget::FileManagerRootType fileManagerRoot
 		, QWidget *parent)
 	: TrikGuiDialog(parent)
+	, mFileIconProvider(new LightFileIconProvider())
 	, mController(controller)
 {
 	QDir dir(trikKernel::Paths::userScriptsPath());
@@ -63,17 +64,21 @@ FileManagerWidget::FileManagerWidget(Controller &controller, MainWidget::FileMan
 		mRootDirPath = trikKernel::Paths::userScriptsPath();
 	}
 
-	mFileSystemModel.setIconProvider(new LightFileIconProvider());
+	mDeleteAllFilesName = tr("Delete all...");
+	mDeleteAllFilesPath = trikKernel::Paths::userScriptsPath() + mDeleteAllFilesName;
+	QFile deleteAllFile(mDeleteAllFilesPath);
+	/// This flag and operation is necessary to create file if it doesn't exists
+	deleteAllFile.open(QIODevice::WriteOnly);
+
+
+	mFileSystemModel.setIconProvider(mFileIconProvider.data());
 	mFileSystemModel.setRootPath(mRootDirPath);
 	mFileSystemModel.setFilter(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDot);
 
-	connect(&mFileSystemModel
-			, SIGNAL(directoryLoaded(QString))
-			, this
-			, SLOT(onDirectoryLoaded(QString))
-			);
+	connect(&mFileSystemModel, &QFileSystemModel::directoryLoaded, this, &FileManagerWidget::onDirectoryLoaded);
 
-	mFileSystemView.setModel(&mFileSystemModel);
+	mFilterProxyModel.setSourceModel(&mFileSystemModel);
+	mFileSystemView.setModel(&mFilterProxyModel);
 
 	mLayout.addWidget(&mCurrentPathLabel);
 	mLayout.addWidget(&mFileSystemView);
@@ -82,8 +87,8 @@ FileManagerWidget::FileManagerWidget(Controller &controller, MainWidget::FileMan
 	mFileSystemView.setSelectionMode(QAbstractItemView::SingleSelection);
 	mFileSystemView.setFocus();
 
-	connect(mFileSystemView.selectionModel(), SIGNAL(currentChanged(QModelIndex, QModelIndex))
-			, this, SLOT(onSelectionChanged(QModelIndex, QModelIndex)));
+	connect(mFileSystemView.selectionModel(), &QItemSelectionModel::currentChanged
+			, this, &FileManagerWidget::onSelectionChanged);
 
 	QSettings settings("trik");
 	mLastSelectedFile = settings.value("lastSelectedFile").toString();
@@ -109,26 +114,44 @@ void FileManagerWidget::renewFocus()
 
 void FileManagerWidget::open()
 {
-	const QModelIndex &index = mFileSystemView.currentIndex();
+	const QModelIndex &index = mFilterProxyModel.mapToSource(mFileSystemView.currentIndex());
 	if (mFileSystemModel.isDir(index)) {
 		if (QDir::setCurrent(mFileSystemModel.filePath(index))) {
 			showCurrentDir();
 		}
 	} else {
-		mController.runFile(mFileSystemModel.filePath(index));
+		if (mFileSystemModel.fileName(index) == mDeleteAllFilesName) {
+			removeAll();
+		} else {
+			mController.runFile(mFileSystemModel.filePath(index));
+		}
 	}
 }
 
 void FileManagerWidget::remove()
 {
-	const QModelIndex &index = mFileSystemView.currentIndex();
+	const QModelIndex &index = mFilterProxyModel.mapToSource(mFileSystemView.currentIndex());
 	if (!mFileSystemModel.isDir(index)) {
-		QMessageBox confirmMessageBox(QMessageBox::Warning, tr("Confirm deletion")
-				, tr("Are you sure you want to delete file?"), QMessageBox::Yes | QMessageBox::No);
-		confirmMessageBox.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint);
-		const int result = confirmMessageBox.exec();
-		if (result == QMessageBox::Yes) {
-			mFileSystemModel.remove(index);
+		if (mFileSystemModel.fileName(index) != mDeleteAllFilesName) {
+			QMessageBox::StandardButton reply = QMessageBox::warning(this, tr("Confirm deletion")
+					, tr("Are you sure you want to delete file?"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+			if (reply == QMessageBox::Yes) {
+				mFileSystemModel.remove(index);
+			}
+		}
+	}
+}
+
+void FileManagerWidget::removeAll()
+{
+	QMessageBox::StandardButton reply = QMessageBox::warning(this, tr("Confirm deletion")
+			, tr("Are you sure you want to delete all files?"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+	if (reply == QMessageBox::Yes) {
+		QDir dir(trikKernel::Paths::userScriptsPath());
+		dir.setNameFilters({"*.js", "*.py"});
+		dir.setFilter(QDir::Files);
+		for (auto &&dirFile: dir.entryList()) {
+			dir.remove(dirFile);
 		}
 	}
 }
@@ -153,9 +176,8 @@ void FileManagerWidget::keyPressEvent(QKeyEvent *event)
 
 void FileManagerWidget::onSelectionChanged(QModelIndex current, QModelIndex previous)
 {
-	Q_UNUSED(previous);
-
-	mLastSelectedFile = mFileSystemModel.filePath(current);
+	Q_UNUSED(previous)
+	mLastSelectedFile = mFileSystemModel.filePath(mFilterProxyModel.mapToSource(current));
 }
 
 QString FileManagerWidget::currentPath()
@@ -190,7 +212,9 @@ void FileManagerWidget::showCurrentDir()
 
 	mFileSystemModel.setFilter(filters);
 
-	mFileSystemView.setRootIndex(mFileSystemModel.index(QDir::currentPath()));
+	mFileSystemView.setRootIndex(mFilterProxyModel.mapFromSource(
+		mFileSystemModel.index(QDir::currentPath())));
+	mFilterProxyModel.sort(0);
 }
 
 void FileManagerWidget::onDirectoryLoaded(const QString &path)
@@ -210,7 +234,7 @@ void FileManagerWidget::renewCurrentIndex()
 
 	QModelIndex currentIndex;
 	if (!mLastSelectedFile.isEmpty()) {
-		currentIndex = mFileSystemModel.index(mLastSelectedFile);
+		currentIndex = mFilterProxyModel.mapFromSource(mFileSystemModel.index(mLastSelectedFile));
 		if (currentIndex.parent() != mFileSystemView.rootIndex()) {
 			// If last selected file is not in this directory, ignore it.
 			currentIndex = QModelIndex();

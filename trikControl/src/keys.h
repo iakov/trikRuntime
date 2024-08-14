@@ -57,6 +57,10 @@ public slots:
 
 	int buttonCode(bool wait = true) override;
 
+signals:
+	/// Emitted when a button's state changed.
+	void buttonStateChanged();
+
 private slots:
 	void changeButtonState(int code, int value);
 

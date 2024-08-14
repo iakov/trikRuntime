@@ -19,21 +19,13 @@
 
 #include <QtCore/qglobal.h>
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-	#include <QtGui/QVBoxLayout>
-	#include <QtGui/QLabel>
-	#include <QtGui/QListView>
-	#include <QtGui/QFileSystemModel>
-#else
-	#include <QtWidgets/QVBoxLayout>
-	#include <QtWidgets/QLabel>
-	#include <QtWidgets/QListView>
-	#include <QtWidgets/QFileSystemModel>
-	#include <QtWidgets/QFileIconProvider>
-#endif
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QListView>
+#include <QFileSystemModel>
+#include <QFileIconProvider>
 
-#include <QtCore/QString>
-
+#include "fileSystemFilter.h"
 #include "controller.h"
 #include "trikGuiDialog.h"
 
@@ -43,6 +35,21 @@ namespace trikGui {
 class FileManagerWidget : public TrikGuiDialog
 {
 	Q_OBJECT
+
+	/// Default QFileIconProvider spend about 10 seconds for scanning empty directory for file icons (Qt 5.8.0),
+	/// so here is suggested the light overwrite version of QFileIconProvider class.
+	/// In future it can be used to divide icons for ".py" and ".js" files.
+	class LightFileIconProvider : public QFileIconProvider {
+	public:
+		/// Ligth version of icon method
+		QIcon icon(IconType) const override;
+
+		/// Ligth version of icon method
+		QIcon icon(const QFileInfo &) const override;
+
+		/// Ligth version of type method
+		QString type(const QFileInfo &) const override;
+	};
 
 public:
 	/// Constructor
@@ -71,30 +78,20 @@ private:
 	void showCurrentDir();
 	void open();
 	void remove();
+	void removeAll();
 	QString currentPath();
 
 	QVBoxLayout mLayout;
 	QLabel mCurrentPathLabel;
 	QListView mFileSystemView;
+	QScopedPointer<LightFileIconProvider> mFileIconProvider;
 	QFileSystemModel mFileSystemModel;
 	Controller &mController;
 	QString mRootDirPath;
 	QString mLastSelectedFile;
-
-	/// Default QFileIconProvider spend about 10 seconds for scanning empty directory for file icons (Qt 5.8.0),
-	/// so here is suggested the light overwrite version of QFileIconProvider class.
-	/// In future it can be used to divide icons for ".py" and ".js" files.
-	class LightFileIconProvider : public QFileIconProvider {
-	public:
-		/// Ligth version of icon method
-		QIcon icon(IconType) const override;
-
-		/// Ligth version of icon method
-		QIcon icon(const QFileInfo &) const override;
-
-		/// Ligth version of type method
-		QString type(const QFileInfo &) const override;
-	};
+	QString mDeleteAllFilesPath;
+	QString mDeleteAllFilesName;
+	FileSystemFilter mFilterProxyModel;
 };
 
 }

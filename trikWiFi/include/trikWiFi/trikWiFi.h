@@ -20,7 +20,7 @@
 
 #include "networkStructs.h"
 
-#include "declSpec.h"
+#include "trikWifiDeclSpec.h"
 
 namespace trikWiFi {
 
@@ -69,6 +69,9 @@ public:
 
 	/// Closes the connection to wpa_supplicant.
 	void dispose();
+
+	/// Return signal strength of current Wi-Fi connection
+	SignalStrength signalStrength();
 
 signals:
 	/// Emitted when scanning for available networks initiated by scan() is finished and results are available

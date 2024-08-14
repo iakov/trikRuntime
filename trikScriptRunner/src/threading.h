@@ -31,13 +31,13 @@ class ScriptThread;
 
 /// Designed to support OS threads from a Qt Script.
 /// Provides methods for creation and joining threads and for sending messages between threads.
-class Threading : public QObject
+class TRIKSCRIPTRUNNER_EXPORT Threading : public QObject
 {
 	Q_OBJECT
 
 public:
 	/// Constructs a Threading object with given script worker as a parent.
-	explicit Threading(ScriptEngineWorker *scriptWorker, ScriptExecutionControl &scriptControl);
+	explicit Threading(ScriptEngineWorker *scriptWorker, TrikScriptControlInterface &scriptControl);
 	~Threading() override;
 
 	/// Starts the main thread of a script
@@ -63,11 +63,6 @@ public:
 	/// Wait until all threads finish execution.
 	/// During this function execution other events can be processed.
 	void waitForAll();
-
-	/// Wait until all threads finish execution.
-	/// During this function execution other events can not be processed,
-	/// they will be processed after.
-	void waitForAllYielding();
 
 	/// Aborts evalutation of all threads, resets to initial state.
 	Q_INVOKABLE void reset();
@@ -106,7 +101,7 @@ private:
 	/// Utility function which locks reset mutex in case if reset is not started.
 	bool tryLockReset();
 
-	QHash<QString, ScriptThread *> mThreads;
+	QHash<QString, QSharedPointer<ScriptThread>> mThreads;
 	QSet<QString> mFinishedThreads;
 	QSet<QString> mPreventFromStart;
 	QMutex mThreadsMutex;
@@ -121,7 +116,7 @@ private:
 	QMutex mResetMutex;
 
 	ScriptEngineWorker * const mScriptWorker;  // Doesn't have ownership.
-	ScriptExecutionControl &mScriptControl;
+	TrikScriptControlInterface &mScriptControl;
 	QString mScript;
 
 	QScriptEngine *mMainScriptEngine; // Doesn't have ownership.

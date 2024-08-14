@@ -15,9 +15,6 @@
 #include "trikServer.h"
 
 #include "connection.h"
-
-#include <QtCore/QDebug>
-
 #include <QsLog.h>
 
 using namespace trikNetwork;
@@ -27,6 +24,14 @@ TrikServer::TrikServer(const std::function<Connection *()> &connectionFactory)
 {
 	qRegisterMetaType<qintptr>("qintptr");
 	qRegisterMetaType<quint16>("quint16");
+	connect(this, &TrikServer::startedConnection, this, [this](Connection *c) {
+		const bool isFirstConnection = mConnections.isEmpty();
+		mConnections.insert(c->thread(), c);
+		if (isFirstConnection) {
+			/// @todo: Emit "connected" signal only when socket is actually connected.
+			emit connected();
+		}
+	});
 }
 
 TrikServer::~TrikServer()
@@ -38,23 +43,24 @@ TrikServer::~TrikServer()
 		}
 	}
 
-	qDeleteAll(mConnections.keys());
+	qDeleteAll(mConnections.keyBegin(), mConnections.keyEnd());
 }
 
-void TrikServer::startServer(quint16 port)
+bool TrikServer::startServer(quint16 port)
 {
-	if (!listen(QHostAddress::Any, port)) {
+	if (!listen(QHostAddress::AnyIPv4, port)) {
 		QLOG_ERROR() << "Can not start server on port " << port;
+		return false;
 	} else {
 		QLOG_INFO() << "Server on port" << port << "started";
-		qDebug() << "Server on port" << port << "started";
+		return true;
 	}
 }
 
 void TrikServer::sendMessage(const QString &message)
 {
-	for (Connection * const connection : mConnections.values()) {
-		QMetaObject::invokeMethod(connection, "send", Q_ARG(QByteArray, message.toUtf8()));
+	for (auto *connection : mConnections) {
+		QMetaObject::invokeMethod(connection, [=](){connection->send(message.toUtf8());});
 	}
 }
 
@@ -70,34 +76,30 @@ void TrikServer::incomingConnection(qintptr socketDescriptor)
 	Connection * const connectionWorker = mConnectionFactory();
 	startConnection(connectionWorker);
 
-	QMetaObject::invokeMethod(connectionWorker, "init", Q_ARG(qintptr, socketDescriptor));
+	QMetaObject::invokeMethod(connectionWorker, [=](){connectionWorker->init(socketDescriptor);});
 }
 
 void TrikServer::startConnection(Connection * const connectionWorker)
 {
-	QThread * const connectionThread = new QThread();
+	auto connectionThread = new QThread(this);
 
 	connectionWorker->moveToThread(connectionThread);
 
-	connect(connectionThread, SIGNAL(finished()), connectionWorker, SLOT(deleteLater()));
-	connect(connectionThread, SIGNAL(finished()), connectionThread, SLOT(deleteLater()));
+	connect(connectionThread, &QThread::finished, connectionWorker, &Connection::deleteLater);
+	connect(connectionThread, &QThread::finished, connectionThread, &QThread::deleteLater);
+	connect(connectionThread, &QThread::started, this, [this, connectionWorker]() {
+		Q_EMIT startedConnection(connectionWorker);
+	});
 
-	connect(connectionWorker, SIGNAL(disconnected(Connection*)), this, SLOT(onConnectionClosed(Connection *)));
+	connect(connectionWorker, &Connection::disconnected, this, &TrikServer::onConnectionClosed);
 
-	const bool firstConnection = mConnections.isEmpty();
-	mConnections.insert(connectionThread, connectionWorker);
-
+	connectionThread->setObjectName(connectionWorker->metaObject()->className());
 	connectionThread->start();
-
-	if (firstConnection) {
-		/// @todo: Emit "connected" signal only when socket is actually connected.
-		emit connected();
-	}
 }
 
 Connection *TrikServer::connection(const QHostAddress &ip, int port) const
 {
-	for (auto *connection : mConnections.values()) {
+	for (auto *connection : mConnections) {
 		if (connection->isValid()) {
 			if (connection->peerAddress() == ip && connection->peerPort() == port) {
 				return connection;
@@ -112,7 +114,7 @@ Connection *TrikServer::connection(const QHostAddress &ip, int port) const
 
 Connection *TrikServer::connection(const QHostAddress &ip) const
 {
-	for (auto *connection : mConnections.values()) {
+	for (auto *connection : mConnections) {
 		if (connection->isValid()) {
 			if (connection->peerAddress() == ip) {
 				return connection;
@@ -127,7 +129,7 @@ Connection *TrikServer::connection(const QHostAddress &ip) const
 
 void TrikServer::onConnectionClosed(Connection *connection)
 {
-	QThread * const thread = mConnections.key(connection);
+	const auto thread = mConnections.key(connection);
 
 	mConnections.remove(thread);
 

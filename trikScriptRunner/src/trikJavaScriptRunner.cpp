@@ -20,45 +20,49 @@
 #include "src/scriptEngineWorker.h"
 #include "src/scriptExecutionControl.h"
 
+#include <QEventLoop>
 #include <QsLog.h>
 
 using namespace trikScriptRunner;
 
-TrikJavaScriptRunner::TrikJavaScriptRunner(trikControl::BrickInterface &brick
-										   , trikNetwork::MailboxInterface * const mailbox
+TrikJavaScriptRunner::TrikJavaScriptRunner(trikControl::BrickInterface *brick
+										   , trikNetwork::MailboxInterface * mailbox
+										   , QSharedPointer<TrikScriptControlInterface> scriptControl
 										   )
-	: mScriptController(new ScriptExecutionControl())
-	, mScriptEngineWorker(new ScriptEngineWorker(brick, mailbox, *mScriptController))
+	: mScriptController(scriptControl)
+	, mScriptEngineWorker(new ScriptEngineWorker(brick, mailbox, mScriptController.data()))
 	, mMaxScriptId(0)
 	, mVariablesServer(new TrikVariablesServer())
 {
-	connect(&mWorkerThread, SIGNAL(finished()), &mWorkerThread, SLOT(deleteLater()));
-	if (mailbox) {
-		connect(mailbox, SIGNAL(newMessage(int, QString)), this, SLOT(sendMessageFromMailBox(int, QString)));
-	}
-
 	mScriptEngineWorker->moveToThread(&mWorkerThread);
 
-	connect(&mWorkerThread, SIGNAL(finished()), mScriptEngineWorker, SLOT(deleteLater()));
-	connect(mScriptEngineWorker, SIGNAL(completed(QString, int)), this, SIGNAL(completed(QString, int)));
-	connect(mScriptEngineWorker, SIGNAL(startedScript(int)), this, SLOT(onScriptStart(int)));
+	connect(&mWorkerThread, &QThread::finished, mScriptEngineWorker, &QThread::deleteLater);
+	connect(mScriptEngineWorker, &ScriptEngineWorker::completed, this, &TrikJavaScriptRunner::completed);
+	connect(mScriptEngineWorker, &ScriptEngineWorker::startedScript, this, &TrikJavaScriptRunner::onScriptStart);
 
-	connect(mScriptController.data(), SIGNAL(sendMessage(QString)), this, SIGNAL(sendMessage(QString)));
+	connect(mScriptController.data(), &TrikScriptControlInterface::textInStdOut
+			, this, &TrikJavaScriptRunner::textInStdOut);
 
-	connect(mVariablesServer.data(), SIGNAL(getVariables(QString)), mScriptEngineWorker, SIGNAL(getVariables(QString)));
-	connect(mScriptEngineWorker, SIGNAL(variablesReady(QJsonObject))
-		, mVariablesServer.data(), SLOT(sendHTTPResponse(QJsonObject)));
+	connect(mVariablesServer.data(), &TrikVariablesServer::getVariables
+		, mScriptEngineWorker, &ScriptEngineWorker::getVariables);
+	connect(mScriptEngineWorker, &ScriptEngineWorker::variablesReady
+		, mVariablesServer.data(), &TrikVariablesServer::sendHTTPResponse);
 
 	QLOG_INFO() << "Starting TrikJavaScriptRunner worker thread" << &mWorkerThread;
 
+	mWorkerThread.setObjectName(mScriptEngineWorker->metaObject()->className());
 	mWorkerThread.start();
 }
 
 TrikJavaScriptRunner::~TrikJavaScriptRunner()
 {
+	QEventLoop wait;
+	connect(&mWorkerThread, &QThread::finished, &wait, &QEventLoop::quit);
 	mScriptEngineWorker->stopScript();
-	QMetaObject::invokeMethod(&mWorkerThread, "quit");
-	mWorkerThread.wait(1000);
+	mWorkerThread.quit();
+	// We need an event loop to process pending calls from dying thread to the current
+	// mWorkerThread.wait(); // <-- !!! blocks pending calls
+	wait.exec();
 }
 
 void TrikJavaScriptRunner::registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function)
@@ -73,7 +77,13 @@ void TrikJavaScriptRunner::addCustomEngineInitStep(const std::function<void (QSc
 
 void TrikJavaScriptRunner::brickBeep()
 {
-	QMetaObject::invokeMethod(mScriptEngineWorker, "brickBeep");
+	QMetaObject::invokeMethod(mScriptEngineWorker, &ScriptEngineWorker::brickBeep);
+}
+
+void TrikJavaScriptRunner::setWorkingDirectory(const QString &workingDir)
+{
+	QMetaObject::invokeMethod(mScriptEngineWorker, [this, workingDir]()
+				{mScriptEngineWorker->setWorkingDir(workingDir);});
 }
 
 void TrikJavaScriptRunner::run(const QString &script, const QString &fileName)
@@ -97,8 +107,10 @@ void TrikJavaScriptRunner::runDirectCommand(const QString &command)
 
 void TrikJavaScriptRunner::abort()
 {
-	mScriptEngineWorker->stopScript();
-	mScriptEngineWorker->resetBrick();
+	if (mScriptEngineWorker) {
+		mScriptEngineWorker->stopScript();
+		mScriptEngineWorker->resetBrick();
+	}
 }
 
 void TrikJavaScriptRunner::onScriptStart(int scriptId)
@@ -108,14 +120,6 @@ void TrikJavaScriptRunner::onScriptStart(int scriptId)
 	} else {
 		emit startedDirectScript(scriptId);
 	}
-}
-
-void TrikJavaScriptRunner::sendMessageFromMailBox(int senderNumber, const QString &message)
-{
-	emit sendMessage(QString("mail: sender: %1 contents: %2")
-					 .arg(senderNumber)
-					 .arg(message)
-					 );
 }
 
 QStringList TrikJavaScriptRunner::knownMethodNames() const

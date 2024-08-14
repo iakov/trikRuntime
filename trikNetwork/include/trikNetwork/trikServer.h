@@ -21,7 +21,7 @@
 #include <QtNetwork/QTcpServer>
 #include <QtCore/QTimer>
 
-#include "declSpec.h"
+#include "trikNetworkDeclSpec.h"
 
 namespace trikNetwork {
 
@@ -43,7 +43,8 @@ public:
 	int activeConnections() const;
 
 	/// Starts listening given port on all network interfaces.
-	Q_INVOKABLE void startServer(quint16 port);
+	/// returns true on successful start
+	Q_INVOKABLE bool startServer(quint16 port);
 
 public slots:
 	/// Broadcasts message across all opened connections.
@@ -56,11 +57,14 @@ signals:
 	/// Emitted when the last connection closes.
 	void disconnected();
 
+	/// Emmitted for each new started connection thread
+	void startedConnection(Connection *c);
+
 protected:
 	void incomingConnection(qintptr socketDescriptor) override;
 
 	/// Launches given connection in a separate thread. Takes ownership over connectionWorker object.
-	void startConnection(Connection * const connectionWorker);
+	void startConnection(Connection * connectionWorker);
 
 	/// Searches connection to given IP and port in a list of all open connections. Note that if connection is added
 	/// by startConnection() call but not finished to open yet, it will not be found.
@@ -73,7 +77,7 @@ protected:
 
 private slots:
 	/// Called when connection thread finishes.
-	void onConnectionClosed(Connection *connection);
+	void onConnectionClosed(trikNetwork::Connection *connection);
 
 private:
 	/// Maps thread object to corresponding connection worker object, to be able to correctly stop and delete them all.

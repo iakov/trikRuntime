@@ -19,6 +19,7 @@
 #include <QtCore/QString>
 #include <QtCore/QThread>
 #include <QtScript/QScriptEngine>
+#include <QtCore/QDir>
 
 #include <trikControl/brickInterface.h>
 #include <trikNetwork/mailboxInterface.h>
@@ -32,7 +33,7 @@ namespace trikScriptRunner
 /// Worker object to be run in a separate thread for Qt Script execution. QScriptEngine calls ProcessEvents too
 /// infrequently even when ProcessEventsInterval is set to 1 ms, so there is a need for separate threads to
 /// run a script and listen for incoming connections.
-class ScriptEngineWorker : public QObject
+class TRIKSCRIPTRUNNER_EXPORT ScriptEngineWorker : public QObject
 {
 	Q_OBJECT
 
@@ -41,9 +42,9 @@ public:
 	/// @param brick - reference to trikControl::Brick instance.
 	/// @param mailbox - mailbox object used to communicate with other robots.
 	/// @param scriptControl - reference to script execution control object.
-	ScriptEngineWorker(trikControl::BrickInterface &brick
-			, trikNetwork::MailboxInterface * const mailbox
-			, ScriptExecutionControl &scriptControl
+	ScriptEngineWorker(trikControl::BrickInterface *brick
+			, trikNetwork::MailboxInterface *mailbox
+			, TrikScriptControlInterface *scriptControl
 			);
 
 	/// Create and initialize a new script engine.
@@ -55,7 +56,7 @@ public:
 	/// Note that functions will not be copied to a new engine due to limitations of Qt Scripting engine,
 	/// they need to be re-evaluated manually.
 	/// Can be safely called from other threads (to some extent. Original engine shall not simultaneously evaluate).
-	QScriptEngine *copyScriptEngine(const QScriptEngine * const original);
+	QScriptEngine *copyScriptEngine(const QScriptEngine * original);
 
 	/// Registers given C++ function as callable from script, with given name.
 	/// Can be safely called from other threads (but it shall not be called simultaneously with engine creation).
@@ -117,6 +118,12 @@ public slots:
 	/// Can be safely called from other threads.
 	void brickBeep();
 
+	/// Eval file from include
+	void evalInclude(const QString &filename, QScriptEngine * const engine);
+
+	/// Set default directory for includes (not a working dir, actually...)
+	void setWorkingDir(const QString &workingDir);
+
 private slots:
 	/// Abort script execution.
 	void onScriptRequestingToQuit();
@@ -126,6 +133,9 @@ private slots:
 
 	/// Actually runs given command. Is to be called from a thread owning ScriptEngineWorker.
 	void doRunDirect(const QString &command, int scriptId);
+
+	/// Evaluate external file with filepath in the current state of the engine
+	void evalExternalFile(const QString &filepath, QScriptEngine * const engine);
 
 private:
 	/// State of a script
@@ -144,26 +154,24 @@ private:
 	void startScriptEvaluation(int scriptId);
 
 	/// Evaluates "system.js" file in given engine.
-	void evalSystemJs(QScriptEngine * const engine) const;
+	void evalSystemJs(QScriptEngine * engine);
 
-	/// Collects all methods names from given metaObject.
-	/// If the returnType of given method name is registered in metaobject system,
-	/// newMetaObject is constructed and procedure is called recursively for it.
-	void collectMethodNames(QSet<QString> &result, const QMetaObject *obj) const;
-
-	trikControl::BrickInterface &mBrick;
-	trikNetwork::MailboxInterface * const mMailbox;  // Does not have ownership.
-	ScriptExecutionControl &mScriptControl;
+	trikControl::BrickInterface *mBrick{}; // Does not have ownership.
+	trikNetwork::MailboxInterface * mMailbox{};  // Does not have ownership.
+	TrikScriptControlInterface *mScriptControl{}; // Does not have ownership.
 	Threading mThreading;
-	QScriptEngine *mDirectScriptsEngine = nullptr;  // Has ownership.
+	QScopedPointer<QScriptEngine> mDirectScriptsEngine;
 	int mScriptId = 0;
-	State mState = State::ready;
+
+	volatile State mState = State::ready;
 	QHash<QString, QScriptEngine::FunctionSignature> mRegisteredUserFunctions;
 	QVector<std::function<void (QScriptEngine *)>> mCustomInitSteps;
 
 	/// Ensures that there is only one instance of StopScript running at any given time, to prevent unpredicted
 	/// behavior when programs are started and stopped actively.
 	QMutex mScriptStateMutex;
+
+	QDir mWorkingDirectory;
 };
 
 }

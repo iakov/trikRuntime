@@ -19,17 +19,24 @@
 #include "outputDeviceFileInterface.h"
 #include "eventFileInterface.h"
 #include "fifoInterface.h"
+#include "IIOFileInterface.h"
 #include "mspI2cInterface.h"
 #include "mspUsbInterface.h"
 #include "systemConsoleInterface.h"
 
+#include <trikHal/trikHalDeclSpec.h>
+#include <QtCore/QDir>
+
 namespace trikHal {
 
 /// Hardware abstraction, provides devices that are used to communicate with robot hardware or emulate it.
-class HardwareAbstractionInterface
+class TRIKHAL_EXPORT HardwareAbstractionInterface
 {
+	Q_DISABLE_COPY(HardwareAbstractionInterface)
 public:
-	virtual ~HardwareAbstractionInterface() {}
+	HardwareAbstractionInterface() = default;
+
+	virtual ~HardwareAbstractionInterface() = default;
 
 	/// Returns MSP I2C bus implementation.
 	virtual MspI2cInterface &mspI2c() = 0;
@@ -43,11 +50,15 @@ public:
 	/// Creates new event file, passes ownership to a caller.
 	/// @param fileName - file name (with path, relative or absolute) of an event file.
 	/// @param thread - background thread where all socket events will be processed.
-	virtual EventFileInterface *createEventFile(const QString &fileName, QThread &thread) const = 0;
+	virtual EventFileInterface *createEventFile(const QString &fileName) const = 0;
 
 	/// Creates new FIFO, passes ownership to a caller.
 	/// @param fileName - file name (with path, relative or absolute) of a FIFO file.
 	virtual FifoInterface *createFifo(const QString &fileName) const = 0;
+
+	/// Creates new IIO file, passes ownership to a caller.
+	/// @param fileName - file name (with path, relative or absolute) of a FIFO file.
+	virtual IIOFileInterface *createIIOFile(const QString &fileName) const = 0;
 
 	/// Creates new input device file, passes ownership to a caller.
 	/// @param fileName - file name (with path, relative or absolute) of a device file.
@@ -60,7 +71,7 @@ public:
 	/// Returns QVector with info about picture pixels
 	/// @param port - port name for device
 	/// @param pathToPic - path to picture
-	virtual QVector<uint8_t> captureV4l2StillImage(const QString &port, const QString &pathToPic) const = 0;
+	virtual QVector<uint8_t> captureV4l2StillImage(const QString &port, const QDir &pathToPic) const = 0;
 };
 
 }

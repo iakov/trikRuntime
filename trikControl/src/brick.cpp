@@ -56,6 +56,8 @@
 #include "i2cDevice.h"
 #include "mspI2cCommunicator.h"
 #include "i2cCommunicator.h"
+#include "lidar.h"
+#include "irCamera.h"
 
 #include "mspBusAutoDetector.h"
 #include "moduleLoader.h"
@@ -87,9 +89,6 @@ Brick::Brick(const trikKernel::DifferentOwnerPointer<trikHal::HardwareAbstractio
 	, mMediaPath(mediaPath)
 	, mConfigurer(systemConfig, modelConfig)
 {
-	qRegisterMetaType<QVector<int>>("QVector<int>");
-	qRegisterMetaType<trikKernel::TimeVal>("trikKernel::TimeVal");
-
 	const bool hasGui = (qobject_cast<QApplication *>(QCoreApplication::instance()) != nullptr);
 
 	if (hasGui) {
@@ -108,6 +107,7 @@ Brick::Brick(const trikKernel::DifferentOwnerPointer<trikHal::HardwareAbstractio
 	mModuleLoader.reset(new ModuleLoader(mHardwareAbstraction->systemConsole()));
 
 	for (const QString &port : mConfigurer.ports()) {
+		QLOG_INFO() << "Creating device on port" << port;
 		createDevice(port);
 	}
 
@@ -149,6 +149,7 @@ Brick::~Brick()
 	qDeleteAll(mFifos);
 	qDeleteAll(mEventDevices);
 	qDeleteAll(mI2cDevices);
+	qDeleteAll(mLidars);
 
 	// Clean up devices before killing hardware abstraction since their finalization may depend on it.
 	mMspCommunicator.reset();
@@ -161,6 +162,7 @@ Brick::~Brick()
 	mDisplay.reset();
 	mLed.reset();
 	mGamepad.reset();
+	mIrCamera.reset();
 }
 
 DisplayWidgetInterface *Brick::graphicsWidget()
@@ -199,7 +201,7 @@ void Brick::reset()
 	}
 
 	/// @todo Temporary, we need more carefully init/deinit range sensors.
-	for (RangeSensor * const rangeSensor : mRangeSensors.values()) {
+	for (auto &&rangeSensor : mRangeSensors) {
 		rangeSensor->init();
 	}
 }
@@ -232,11 +234,14 @@ void Brick::playTone(int hzFreq, int msDuration)
 {
 	QLOG_INFO() << "Playing tone (" << hzFreq << "," << msDuration << ")";
 
-	if (hzFreq < 0 || msDuration < 0)
+	if (hzFreq < 0 || msDuration < 0) {
 		return;
+	}
+
 	// mHardwareAbstraction->systemSound()->playTone(hzFreq, msDuration);
 	// mTonePlayer->play(hzFreq, msDuration);
-	QMetaObject::invokeMethod(mTonePlayer.data(), "play", Q_ARG(int, hzFreq), Q_ARG(int, msDuration));
+	QMetaObject::invokeMethod(mTonePlayer.data(), [this, hzFreq, msDuration](){
+		mTonePlayer->play(hzFreq, msDuration);});
 }
 
 void Brick::say(const QString &text)
@@ -251,11 +256,11 @@ void Brick::stop()
 
 	mTonePlayer->stop();
 
-	for (ServoMotor * const servoMotor : mServoMotors.values()) {
+	for (auto &&servoMotor : mServoMotors) {
 		servoMotor->powerOff();
 	}
 
-	for (PowerMotor * const powerMotor : mPowerMotors.values()) {
+	for (auto &&powerMotor : mPowerMotors) {
 		powerMotor->powerOff();
 	}
 
@@ -264,32 +269,36 @@ void Brick::stop()
 	}
 
 	/// @todo: Also be able to stop initializing sensor.
-	for (LineSensor * const lineSensor : mLineSensors) {
+	for (auto &&lineSensor : mLineSensors) {
 		if (lineSensor->status() == DeviceInterface::Status::ready) {
 			lineSensor->stop();
 		}
 	}
 
-	for (ColorSensor * const colorSensor : mColorSensors) {
+	for (auto &&colorSensor : mColorSensors) {
 		if (colorSensor->status() == DeviceInterface::Status::ready) {
 			colorSensor->stop();
 		}
 	}
 
-	for (ObjectSensor * const objectSensor : mObjectSensors) {
+	for (auto &&objectSensor : mObjectSensors) {
 		if (objectSensor->status() == DeviceInterface::Status::ready) {
 			objectSensor->stop();
 		}
 	}
 
-	for (SoundSensor * const soundSensor : mSoundSensors) {
+	for (auto &&soundSensor : mSoundSensors) {
 		if (soundSensor->status() == DeviceInterface::Status::ready) {
 			soundSensor->stop();
 		}
 	}
 
-	for (RangeSensor * const rangeSensor : mRangeSensors.values()) {
+	for (auto &&rangeSensor : mRangeSensors) {
 		rangeSensor->stop();
+	}
+
+	if (mIrCamera) {
+		mIrCamera->stop();
 	}
 
 	qDeleteAll(mEventDevices);
@@ -325,6 +334,16 @@ SensorInterface *Brick::sensor(const QString &port)
 	}
 }
 
+LidarInterface *Brick::lidar()
+{
+	auto port = "lidarPort";
+	if (mLidars.contains(port)) {
+		return mLidars[port];
+	} else {
+		return nullptr;
+	}
+}
+
 QStringList Brick::motorPorts(MotorInterface::Type type) const
 {
 	switch (type) {
@@ -355,11 +374,11 @@ QStringList Brick::sensorPorts(SensorInterface::Type type) const
 	}
 	case SensorInterface::Type::specialSensor: {
 		// Special sensors can not be connected to standard ports, they have their own methods to access them.
-		return QStringList();
+		return {};
 	}
 	}
 
-	return QStringList();
+	return {};
 }
 
 EncoderInterface *Brick::encoder(const QString &port)
@@ -460,6 +479,11 @@ MarkerInterface *Brick::marker()
 	return nullptr;
 }
 
+IrCameraInterface *Brick::irCamera()
+{
+	return mIrCamera.data();
+}
+
 EventDeviceInterface *Brick::eventDevice(const QString &deviceFile)
 {
 	if (!mEventDevices.contains(deviceFile)) {
@@ -522,6 +546,9 @@ void Brick::shutdownDevice(const QString &port)
 	} else if (deviceClass == "fifo") {
 		delete mFifos[port];
 		mFifos.remove(port);
+	} else if (deviceClass == "lidar") {
+		delete mLidars[port];
+		mLidars.remove(port);
 	}
 }
 
@@ -550,29 +577,36 @@ void Brick::createDevice(const QString &port)
 			mLineSensors.insert(port, new LineSensor(port, mConfigurer, *mHardwareAbstraction));
 
 			/// @todo This will work only in case when there can be only one video sensor launched at a time.
-			connect(mLineSensors[port], SIGNAL(stopped()), this, SIGNAL(stopped()));
+			connect(mLineSensors[port], &LineSensor::stopped, this, &Brick::stopped);
 		} else if (deviceClass == "objectSensor") {
 			mObjectSensors.insert(port, new ObjectSensor(port, mConfigurer, *mHardwareAbstraction));
 
 			/// @todo This will work only in case when there can be only one video sensor launched at a time.
-			connect(mObjectSensors[port], SIGNAL(stopped()), this, SIGNAL(stopped()));
+			connect(mObjectSensors[port], &ObjectSensor::stopped, this, &Brick::stopped);
 		} else if (deviceClass == "colorSensor") {
 			mColorSensors.insert(port, new ColorSensor(port, mConfigurer, *mHardwareAbstraction));
 
 			/// @todo This will work only in case when there can be only one video sensor launched at a time.
-			connect(mColorSensors[port], SIGNAL(stopped()), this, SIGNAL(stopped()));
+			connect(mColorSensors[port], &ColorSensor::stopped, this, &Brick::stopped);
 		} else if (deviceClass == "soundSensor") {
 			mSoundSensors.insert(port, new SoundSensor(port, mConfigurer, *mHardwareAbstraction));
 
 			/// @todo This will work only in case when there can be only one sound sensor launched at a time.
-			connect(mSoundSensors[port], SIGNAL(stopped()), this, SIGNAL(stopped()));
+			connect(mSoundSensors[port], &SoundSensor::stopped, this, &Brick::stopped);
 		} else if (deviceClass == "fifo") {
 			mFifos.insert(port, new Fifo(port, mConfigurer, *mHardwareAbstraction));
+		} else if (deviceClass == "lidar") {
+			mLidars.insert(port, new Lidar(port, mConfigurer, *mHardwareAbstraction));
 		} else if (deviceClass == "camera") {
 			QScopedPointer<CameraDeviceInterface> tmp (
-						new CameraDevice(mMediaPath, mConfigurer, *mHardwareAbstraction)
+						new CameraDevice(port, mMediaPath, mConfigurer, *mHardwareAbstraction)
 					);
 			mCamera.swap(tmp);
+		} else if (deviceClass == "irCamera") {
+			QScopedPointer<IrCameraInterface> tmp (
+				new IrCamera(port, mConfigurer, *mHardwareAbstraction)
+				);
+			mIrCamera.swap(tmp);
 		}
 	} catch (MalformedConfigException &e) {
 		QLOG_ERROR() << "Config for port" << port << "is malformed:" << e.errorMessage();

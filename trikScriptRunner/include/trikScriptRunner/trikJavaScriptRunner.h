@@ -14,8 +14,11 @@
 
 #pragma once
 
+#include "trikScriptControlInterface.h"
 #include "trikScriptRunnerInterface.h"
 #include "trikVariablesServer.h"
+
+#include <QPointer>
 
 namespace trikNetwork {
 class MailboxInterface;
@@ -28,44 +31,43 @@ class BrickInterface;
 namespace trikScriptRunner {
 
 class ScriptEngineWorker;
-class ScriptExecutionControl;
+class TrikScriptControlInterface;
 
 /// Executes scripts in Qt Scripting Engine.
-class TrikJavaScriptRunner : public TrikScriptRunnerInterface
+class TRIKSCRIPTRUNNER_EXPORT TrikJavaScriptRunner : public TrikScriptRunnerInterface
 {
 	Q_OBJECT
 public:
 	/// Constructor.
 	/// @param brick - reference to trikControl::Brick instance.
 	/// @param mailbox - mailbox object used to communicate with other robots.
-	TrikJavaScriptRunner(trikControl::BrickInterface &brick
-						 , trikNetwork::MailboxInterface * const mailbox
-						 );
+	TrikJavaScriptRunner(trikControl::BrickInterface *brick, trikNetwork::MailboxInterface * mailbox
+						 , QSharedPointer<TrikScriptControlInterface> scriptControl);
 
-	~TrikJavaScriptRunner();
+	~TrikJavaScriptRunner() override;
 
 	void registerUserFunction(const QString &name, QScriptEngine::FunctionSignature function) override;
 	void addCustomEngineInitStep(const std::function<void (QScriptEngine *)> &step) override;
 
 	QStringList knownMethodNames() const override;
 
+	bool wasError() override { return false; }
+
 public slots:
 	void run(const QString &script, const QString &fileName = "") override;
 	void runDirectCommand(const QString &command) override;
 	void abort() override;
 	void brickBeep() override;
+	void setWorkingDirectory(const QString &workingDir) override;
 
 private slots:
 	void onScriptStart(int scriptId);
 
-	/// Sends message to host machine from mailbox via wifi.
-	void sendMessageFromMailBox(int senderNumber, const QString &message);
-
 private:
-	QScopedPointer<ScriptExecutionControl> mScriptController;
+	QSharedPointer<TrikScriptControlInterface> mScriptController;
 
 	/// Has ownership, memory is managed by thread and deleteLater().
-	ScriptEngineWorker *mScriptEngineWorker;
+	QPointer<ScriptEngineWorker> mScriptEngineWorker;
 	QThread mWorkerThread;
 
 	int mMaxScriptId;

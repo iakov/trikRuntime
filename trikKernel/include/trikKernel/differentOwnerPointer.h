@@ -24,6 +24,8 @@ namespace trikKernel {
 template<typename T> class DifferentOwnerPointer
 {
 public:
+	~DifferentOwnerPointer() = default;
+
 	/// Copy constructor. Preserves ownership semantics of a copied object.
 	DifferentOwnerPointer(const DifferentOwnerPointer<T> &other)
 		: mPointer(other.mPointer)
@@ -54,6 +56,12 @@ public:
 	{
 	}
 
+	/// Reset/detach (as in the shared_pointer) if we have (shared) ownership.
+	inline void reset() {
+		mPointerGuard.reset();
+		mPointer = nullptr;
+	}
+
 	/// Operator that allows to access members of stored object.
 	inline T *operator->()
 	{
@@ -77,7 +85,7 @@ public:
 
 private:
 	/// Does not directly have ownership, owned by mPointerGuard when needed.
-	T *mPointer;
+	T *mPointer {};
 
 	QSharedPointer<T> mPointerGuard;
 };

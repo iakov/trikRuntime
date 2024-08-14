@@ -24,22 +24,28 @@ static const int evKey = 1;
 
 KeysWorker::KeysWorker(const QString &keysPath, DeviceState &state
 		, const trikHal::HardwareAbstractionInterface &hardwareAbstraction)
-	: mEventFile(hardwareAbstraction.createEventFile(keysPath, *QThread::currentThread()))
+	: mHardwareAbstraction(hardwareAbstraction)
+	, mKeysPath(keysPath)
 	, mState(state)
 {
 	mState.start();
+}
+
+void KeysWorker::init()
+{
+	mEventFile.reset(mHardwareAbstraction.createEventFile(mKeysPath));
 	if (!mEventFile->open()) {
 		mState.fail();
 		return;
 	}
 
-	connect(mEventFile.data(), SIGNAL(newEvent(int, int, int, trikKernel::TimeVal))
-			, this, SLOT(readKeysEvent(int, int, int, trikKernel::TimeVal)));
+	connect(mEventFile.data(), &trikHal::EventFileInterface::newEvent, this, &KeysWorker::readKeysEvent);
 }
 
 void KeysWorker::reset()
 {
 	mLock.lockForWrite();
+	emit stopWaiting();
 	mWasPressed.clear();
 	mButtonCode = 0;
 	mButtonValue = 0;

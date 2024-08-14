@@ -21,6 +21,7 @@
 #include "stubInputDeviceFile.h"
 #include "stubOutputDeviceFile.h"
 #include "stubFifo.h"
+#include "stubIIOFile.h"
 
 #include "QsLog.h"
 
@@ -53,15 +54,19 @@ SystemConsoleInterface &StubHardwareAbstraction::systemConsole()
 	return *mSystemConsole.data();
 }
 
-EventFileInterface *StubHardwareAbstraction::createEventFile(const QString &fileName, QThread &thread) const
+EventFileInterface *StubHardwareAbstraction::createEventFile(const QString &fileName) const
 {
-	Q_UNUSED(thread)
 	return new StubEventFile(fileName);
 }
 
 FifoInterface *StubHardwareAbstraction::createFifo(const QString &fileName) const
 {
 	return new StubFifo(fileName);
+}
+
+IIOFileInterface *StubHardwareAbstraction::createIIOFile(const QString &fileName) const
+{
+	return new StubIIOFile(fileName);
 }
 
 InputDeviceFileInterface *StubHardwareAbstraction::createInputDeviceFile(const QString &fileName) const
@@ -74,7 +79,7 @@ OutputDeviceFileInterface *StubHardwareAbstraction::createOutputDeviceFile(const
 	return new StubOutputDeviceFile(fileName);
 }
 
-QVector<uint8_t> StubHardwareAbstraction::captureV4l2StillImage(const QString &port, const QString &pathToPic) const
+QVector<uint8_t> StubHardwareAbstraction::captureV4l2StillImage(const QString &port, const QDir &pathToPic) const
 {
 	Q_UNUSED(pathToPic);
 	QLOG_INFO() << "Call stub HAL captureV4l2StillImage on port " + port;

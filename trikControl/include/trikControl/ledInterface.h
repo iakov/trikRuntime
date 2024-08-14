@@ -18,7 +18,7 @@
 
 #include "deviceInterface.h"
 
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -42,3 +42,5 @@ public slots:
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::LedInterface *)

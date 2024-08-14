@@ -21,6 +21,10 @@
 #include "abstractIndicator.h"
 #include "sensorIndicator.h"
 #include "encoderIndicator.h"
+#include "gyroscopeIndicator.h"
+#include "accelerometerWidget.h"
+#include "cameraWidget.h"
+#include "pwmCaptureIndicator.h"
 
 using namespace trikGui;
 
@@ -28,20 +32,37 @@ SensorsWidget::SensorsWidget(trikControl::BrickInterface &brick, const QStringLi
 		, SensorType sensorType, QWidget *parent)
 	: TrikGuiDialog(parent)
 	, mBrick(brick)
-	, mIndicators(ports.size())
 	, mInterval(100)
+	, mSensorType(sensorType)
 {
 	mTimer.setInterval(mInterval);
 	mTimer.setSingleShot(false);
 
 	int i = 0;
-	for (const QString &port : ports) {
-		AbstractIndicator *indicator = produceIndicator(port, sensorType);
+
+	if (mSensorType == SensorsWidget::SensorType::gyroscope
+			|| mSensorType == SensorsWidget::SensorType::accelerometer
+			|| mSensorType == SensorsWidget::SensorType::camera) {
+		AbstractIndicator *indicator = produceIndicator(QString(""), mSensorType);
+		mIndicators.resize(1);
+
 		if (indicator) {
 			mLayout.addWidget(indicator);
-			connect(&mTimer, SIGNAL(timeout()), indicator, SLOT(renew()));
+			connect(&mTimer, &QTimer::timeout, indicator, &AbstractIndicator::renew);
 			mIndicators[i] = indicator;
-			++i;
+		}
+
+	} else {
+		mIndicators.resize(ports.size());
+
+		for (const QString &port : ports) {
+			AbstractIndicator *indicator = produceIndicator(port, mSensorType);
+			if (indicator) {
+				mLayout.addWidget(indicator);
+				connect(&mTimer, &QTimer::timeout, indicator, &AbstractIndicator::renew);
+				mIndicators[i] = indicator;
+				++i;
+			}
 		}
 	}
 
@@ -76,6 +97,28 @@ void SensorsWidget::goHome()
 	TrikGuiDialog::goHome();
 }
 
+void SensorsWidget::keyPressEvent(QKeyEvent *event)
+{
+	switch (event->key()) {
+		case Qt::Key_PowerOff: {
+			goHome();
+			break;
+		}
+		case Qt::Key_Escape: {
+			exit();
+			break;
+		}
+		case Qt::Key_Return: {
+			mIndicators[0]->setFocus();
+			break;
+		}
+		default: {
+			TrikGuiDialog::keyPressEvent(event);
+			break;
+		}
+	}
+}
+
 AbstractIndicator *SensorsWidget::produceIndicator(const QString &port, SensorType sensorType)
 {
 	switch (sensorType) {
@@ -84,6 +127,18 @@ AbstractIndicator *SensorsWidget::produceIndicator(const QString &port, SensorTy
 	}
 	case SensorType::encoder: {
 		return new EncoderIndicator(port, *mBrick.encoder(port), this);
+	}
+	case SensorType::gyroscope: {
+		return new GyroscopeIndicator(mBrick.gyroscope(), this);
+	}
+	case SensorType::accelerometer: {
+		return new AccelerometerWidget(mBrick.accelerometer(), this);
+	}
+	case SensorType::camera: {
+		return new CameraWidget(mBrick, this);
+	}
+	case SensorType::pwmCapture: {
+		return new PwmCaptureIndicator(port, *mBrick.pwmCapture(port), this);
 	}
 	}
 

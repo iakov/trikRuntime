@@ -15,15 +15,18 @@
 #pragma once
 
 #include <QtCore/QString>
+#include <trikHal/trikHalDeclSpec.h>
 
 namespace trikHal {
 
 /// Output device file abstraction. Can only write to a device file, thus sending commands to a device driver.
 /// Flushes its contents after every write.
-class OutputDeviceFileInterface
+class TRIKHAL_EXPORT OutputDeviceFileInterface
 {
+	Q_DISABLE_COPY(OutputDeviceFileInterface)
 public:
-	virtual ~OutputDeviceFileInterface() {}
+	OutputDeviceFileInterface() = default;
+	virtual ~OutputDeviceFileInterface() = default;
 
 	/// Open a file. File name must be set previously.
 	virtual bool open() = 0;

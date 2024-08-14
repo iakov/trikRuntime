@@ -19,6 +19,7 @@
 #include <QtCore/QHash>
 #include <QtCore/QSet>
 #include <QtCore/QStringList>
+#include "trikKernelDeclSpec.h"
 
 namespace trikKernel {
 
@@ -30,7 +31,7 @@ namespace trikKernel {
 /// one option ("--config" with value "./configs") and one flag ("--no-locale).
 /// Options and flags in short form are detected by "-" prefix, and in long form --- by "--", so if some positional
 /// argument starts with "-" it must be quoted.
-class CommandLineParser
+class TRIKKERNEL_EXPORT CommandLineParser
 {
 public:
 	/// Adds application description string.
@@ -61,7 +62,7 @@ public:
 	bool isSet(const QString &optionShortName) const;
 
 	/// Returns value of an option or an empty string if it is not set.
-	QString value(const QString optionShortName) const;
+	QString value(const QString &optionShortName) const;
 
 private:
 	QString mApplicationName;

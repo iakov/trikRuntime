@@ -14,17 +14,19 @@
 
 #pragma once
 
+#include <QtCore/QDir>
 #include <QtCore/QScopedPointer>
 #include <QtCore/QString>
 #include <QtCore/QVector>
 #include <QtGui/QImage>
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
 /// Interface for camera implementations
 class TRIKCONTROL_EXPORT CameraImplementationInterface
 {
+	Q_DISABLE_COPY(CameraImplementationInterface)
 public:
 
 	/// Get photo as a vector of uint8t in RGB 888 format
@@ -32,19 +34,17 @@ public:
 
 	virtual ~CameraImplementationInterface() = default;
 
+	CameraImplementationInterface() = default;
+
 	/// Get directory, where photos are saved
-	QString getTempDir() const { return tempDir;}
+	QDir getTempDir() const { return tempDir;}
 
 	/// Set directory, where photos are saved
 	/// @param newDir - new name of tempDir
-	void setTempDir(const QString &newDir) {tempDir = newDir;}
-
-	/// Convert QImage to QVector of uint8_t in RGB 888 format
-	/// @param imgOrig - converting this QImage to QVector
-	QVector<uint8_t> qImageToQVector(const QImage &imgOrig);
+	void setTempDir(const QDir &newDir) {tempDir = newDir;}
 
 private:
-	QString tempDir;
+	QDir tempDir;
 
 };
 

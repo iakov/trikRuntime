@@ -11,25 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+TARGET = trikRuntime
 TEMPLATE = subdirs
-
 SUBDIRS = \
-	initvars \
-	qslog \
-	PythonQt \
-	trikKernel \
-	trikWiFi \
-	trikNetwork \
-	trikHal \
-	trikControl \
-	trikTelemetry \
-	trikCommunicator \
-	trikScriptRunner \
-	trikGui \
-	trikRun \
-	trikServer \
-	translations \
+        initvars \
+        qslog \
+        trikKernel \
+        trikWiFi \
+        trikNetwork \
+        trikHal \
+        trikControl \
+        trikTelemetry \
+        trikCommunicator \
+        trikScriptRunner \
+        trikGui \
+        trikRun \
+        trikServer \
+        translations \
+        mlx90640-library \
 
 initvars.file = $$PWD/initvars.pre
 
@@ -40,28 +39,40 @@ tests {
 
 qslog.file = qslog/QsLogSharedLibrary.pro
 
-trikCommunicator.depends = trikScriptRunner trikNetwork qslog
-trikControl.depends = trikKernel trikHal qslog
-trikGui.depends = trikCommunicator trikScriptRunner trikWiFi trikKernel trikTelemetry qslog
-trikKernel.depends = qslog
-trikNetwork.depends = trikKernel qslog
-trikRun.depends = trikScriptRunner trikKernel qslog
-trikScriptRunner.depends = trikControl trikKernel trikNetwork qslog PythonQt
-trikServer.depends = trikCommunicator qslog
-trikTelemetry.depends = trikControl trikNetwork trikKernel qslog
-trikWiFi.depends = qslog trikKernel
-trikHal.depends = qslog trikKernel
-PythonQt.depends = qslog
 qslog.depends = initvars
 translations.depends = initvars
+mlx90640-library.depends = initvars
+
+trikKernel.depends = qslog translations
+trikHal.depends = trikKernel
+trikControl.depends = trikHal mlx90640-library
+trikWiFi.depends = trikKernel
+trikNetwork.depends = trikKernel
+trikRun.depends = trikScriptRunner
+trikScriptRunner.depends = trikControl trikNetwork
+trikCommunicator.depends = trikScriptRunner
+trikServer.depends = trikCommunicator
+trikTelemetry.depends = trikControl trikNetwork
+trikGui.depends = trikCommunicator trikScriptRunner trikWiFi trikTelemetry
+
+!trik_nopython {
+    SUBDIRS += PythonQt
+    trikScriptRunner.depends += PythonQt
+    PythonQt.depends = qslog
+}
+
+TRANSLATIONS += \
+        $$PWD/translations/trikRuntime_ru.ts \
+        $$PWD/translations/trikRuntime_fr.ts \
+        $$PWD/translations/trikRuntime_de.ts \
 
 OTHER_FILES += \
 	$$PWD/resources/changelog.txt \
-	$$PWD/resources/asan.supp \
-	$$PWD/.travis.yml \
-	$$PWD/docker/Dockerfile \
+	$$PWD/resources/lsan.supp \
+        $$PWD/docker/Dockerfile \
 
 include($$PWD/global.pri)
 
 copyToDestdir($$PWD/resources/changelog.txt, now)
-copyToDestdir($$PWD/resources/asan.supp, now)
+copyToDestdir($$PWD/resources/lsan.supp, now)
+

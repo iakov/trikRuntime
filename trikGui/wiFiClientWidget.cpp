@@ -22,14 +22,8 @@
 #include <QtNetwork/QHostAddress>
 #include <QtNetwork/QAbstractSocket>
 #include <QtGui/QKeyEvent>
-
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-	#include <QtGui/QScrollBar>
-	#include <QtGui/QMessageBox>
-#else
-	#include <QtWidgets/QScrollBar>
-	#include <QtWidgets/QMessageBox>
-#endif
+#include <QtWidgets/QScrollBar>
+#include <QtWidgets/QMessageBox>
 
 #include <trikKernel/fileUtils.h>
 #include <trikKernel/paths.h>
@@ -47,12 +41,11 @@ WiFiClientWidget::WiFiClientWidget(TrikWiFi &trikWiFi, QWidget *parent)
 	, mWiFi(trikWiFi)
 	, mConnectionState(ConnectionState::notConnected)
 {
-	connect(&mWiFi, SIGNAL(scanFinished()), this, SLOT(onNetworksInfoUpdated()));
-	connect(&mWiFi, SIGNAL(connected()), this, SLOT(onConnected()));
-	connect(&mWiFi, SIGNAL(disconnected(trikWiFi::DisconnectReason))
-			, this, SLOT(onDisconnected(trikWiFi::DisconnectReason)));
-	connect(&mWiFi, SIGNAL(statusReady()), this, SLOT(onStatusUpdated()));
-	connect(&mWiFi, SIGNAL(error(const QString &)), this, SLOT(onError(const QString &)));
+	connect(&mWiFi, &TrikWiFi::scanFinished, this, &WiFiClientWidget::onNetworksInfoUpdated);
+	connect(&mWiFi, &TrikWiFi::connected, this, &WiFiClientWidget::onConnected);
+	connect(&mWiFi, &TrikWiFi::disconnected, this, &WiFiClientWidget::onDisconnected);
+	connect(&mWiFi, &TrikWiFi::statusReady, this, &WiFiClientWidget::onStatusUpdated);
+	connect(&mWiFi, &TrikWiFi::error, this, &WiFiClientWidget::onError);
 
 	mConnectionIconLabel.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -87,7 +80,7 @@ WiFiClientWidget::WiFiClientWidget(TrikWiFi &trikWiFi, QWidget *parent)
 	mConnectionTimeoutTimer.setInterval(connectionTimeout);
 	mConnectionTimeoutTimer.setSingleShot(true);
 
-	connect(&mConnectionTimeoutTimer, SIGNAL(timeout()), this, SLOT(onConnectionTimeout()));
+	connect(&mConnectionTimeoutTimer, &QTimer::timeout, this, &WiFiClientWidget::onConnectionTimeout);
 
 	mWiFi.statusRequest();
 	mWiFi.scanRequest();
@@ -115,7 +108,7 @@ void WiFiClientWidget::onNetworksInfoUpdated()
 		mNetworks.insert(network.ssid, network);
 	}
 
-	for (const NetworkInfo &network : mNetworks.values()) {
+	for (auto &&network : mNetworks) {
 		mAvailableNetworksModel.appendRow(new QStandardItem(network.ssid));
 	}
 
@@ -224,15 +217,15 @@ void WiFiClientWidget::updateConnectionStatusesInNetworkList()
 		font.setBold(false);
 		item->setFont(font);
 		if (item->text() == mCurrentSsid) {
-			item->setIcon(QIcon("://resources/connectedWifi.png"));
+			item->setIcon(QIcon(QPixmap("://resources/connectedWifi.png")));
 			font.setBold(true);
 			item->setFont(font);
 		} else if (mNetworks[item->text()].isKnown) {
-			item->setIcon(QIcon("://resources/knownWifi.png"));
+			item->setIcon(QIcon(QPixmap("://resources/knownWifi.png")));
 		} else if (mNetworks[item->text()].security == Security::none) {
-			item->setIcon(QIcon("://resources/openWifi.png"));
+			item->setIcon(QIcon(QPixmap("://resources/openWifi.png")));
 		} else {
-			item->setIcon(QIcon("://resources/passwordedWifi.png"));
+			item->setIcon(QIcon(QPixmap("://resources/passwordedWifi.png")));
 		}
 	}
 
@@ -285,7 +278,7 @@ void WiFiClientWidget::connectToSelectedNetwork()
 void WiFiClientWidget::showScanning()
 {
 	const auto scanning = new QStandardItem(tr("Scanning..."));
-	scanning->setIcon(QIcon("://resources/wait.png"));
+	scanning->setIcon(QIcon(QPixmap("://resources/wait.png")));
 	mAvailableNetworksModel.clear();
 	mAvailableNetworksModel.appendRow(scanning);
 }

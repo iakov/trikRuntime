@@ -50,18 +50,18 @@ public slots:
 	/// for better performance.
 	void showImage(const QString &fileName);
 
+	/// Shows image from array data according to format. Image is scaled to fill the screen.
+	void show(const QVector<int32_t> &array, int width, int height, const QString &format);
+
 	/// Add a label to the specific position of the screen without redrawing it.
 	/// If there already is a label in these coordinates, its contents will be updated.
 	/// @param text - label text.
 	/// @param x - label x coordinate.
 	/// @param y - label y coordinate.
-	void addLabel(const QString &text, int x, int y);
+	void addLabel(const QString &text, int x, int y, int fontSize = -1);
 
 	/// Remove all labels from the screen and redraws it.
 	void removeLabels();
-
-	/// Queues worker object for deletion. It is actually deleted when control flow returns to event loop.
-	void deleteWorker();
 
 	/// Hides image widget.
 	void hide();

@@ -42,8 +42,10 @@ public:
 	/// @param state - state of a device.
 	/// @param thread - background thread where all socket events will be processed.
 	VectorSensorWorker(const QString &eventFile, DeviceState &state
-			, const trikHal::HardwareAbstractionInterface &hardwareAbstraction
-			, QThread &thread);
+			, const trikHal::HardwareAbstractionInterface &hardwareAbstraction);
+
+	/// Execute init() after worker thread started.
+	void init();
 
 signals:
 	/// Emitted when new sensor reading is ready.
@@ -52,9 +54,6 @@ signals:
 public slots:
 	/// Returns current raw reading of a sensor.
 	QVector<int> read();
-
-	/// Shuts down sensor.
-	void deinitialize();
 
 private slots:
 	/// Updates current reading when new value is ready in event file.
@@ -80,6 +79,9 @@ private:
 
 	/// Device state, shared between worker and proxy.
 	DeviceState &mState;
+
+	const trikHal::HardwareAbstractionInterface &mHardwareAbstraction;
+	const QString mEventFileName;
 
 	/// Timer that reopens event file when there are no events for too long (1 second hardcoded).
 	QTimer mLastEventTimer;

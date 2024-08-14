@@ -15,13 +15,13 @@
  *	Author: Rostislav Varzar
 */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
+#include <cerrno>
 #include <termios.h>
 
 #include <QtCore/QByteArray>
@@ -53,6 +53,7 @@ uint8_t addr_table_i2c_usb[84] =	// Correspondence address table (between I2C an
 /// Delays class
 class Sleeper : public QThread
 {
+	Q_OBJECT
 public:
 	static void usleep(unsigned long usecs){QThread::usleep(usecs);}
 	static void msleep(unsigned long msecs){QThread::msleep(msecs);}
@@ -435,7 +436,7 @@ uint32_t init_i2c_sensors_USBMSP()
 uint32_t connect_USBMSP()
 {
 	// Open USB descriptor for writing
-	usb_out_descr = open(USB_DEV_NAME, O_RDWR | O_NONBLOCK | O_NDELAY);
+	usb_out_descr = open(USB_DEV_NAME, O_RDWR | O_NONBLOCK | O_NDELAY | O_CLOEXEC);
 	if (usb_out_descr < 0)
 	{
 		QLOG_INFO() << "Error " << errno << " opening " << USB_DEV_NAME << ": " << strerror (errno);
@@ -643,8 +644,8 @@ uint32_t reset_Encoder(QByteArray const &i2c_data)
 /// Read encoder function
 uint32_t read_Encoder(QByteArray const &i2c_data)
 {
-	char s1[MAX_STRING_LENGTH];		    // Temp string variable
-	char s2[MAX_STRING_LENGTH];		    // Temp string variable
+	char s1[MAX_STRING_LENGTH] {};		    // Temp string variable
+	char s2[MAX_STRING_LENGTH] {};		    // Temp string variable
 	uint32_t errcode;			    // Returned error code
 	Q_UNUSED(errcode);
 	uint8_t devaddr;			    // Returned device address
@@ -717,20 +718,20 @@ uint32_t read_URM04_dist(uint8_t dev_addr, uint8_t urm04_addr)
 	uint8_t pack2[6] = {0x55, 0xAA, urm04_addr, 0x00, 0x02, crc_b};
 	uint8_t buf1[8] = {0};
 	// Trigger device
-	for (int i = 0; i < 6; i++)
+	for (auto x : pack1)
 	{
-		makeWriteRegPacket(s1, dev_addr, UUDAT, pack1[i]);
+		makeWriteRegPacket(s1, dev_addr, UUDAT, x);
 		sendUSBPacket(s1, s1);
 	}
 	// Wait about 400 ms
 	Sleeper::msleep(400);
 	// Read distance
-	for (int i = 0; i < 6; i++)
+	for (auto x: pack2)
 	{
-		makeWriteRegPacket(s1, dev_addr, UUDAT, pack2[i]);
+		makeWriteRegPacket(s1, dev_addr, UUDAT, x);
 		sendUSBPacket(s1, s1);
 	}
-	for (int i = 0; i < 8; i++)
+	for (auto &x: buf1)
 	{
 		do
 		{
@@ -739,7 +740,7 @@ uint32_t read_URM04_dist(uint8_t dev_addr, uint8_t urm04_addr)
 			errcode = decodeReceivedPacket(s2, devaddr, funccode, regaddr, regval);
 			tmout ++;
 		} while (((devaddr != dev_addr) || (regaddr != UUDAT)) && (tmout < TIME_OUT));
-		buf1[i] = regval;
+		x = regval;
 	}
 	crc1 = buf1[0] + buf1[1] + buf1[2] + buf1[3] + buf1[4] + buf1[5] + buf1[6];
 	if (crc1 != buf1[7])

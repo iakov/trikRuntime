@@ -25,35 +25,22 @@
 # - CONFIG+=sanitize-undefined will enable undefined behavior sanitizer
 # - CONFIG+=sanitize-thread will enable thread sanitizer
 
-!isEmpty(_PRO_FILE_):!isEmpty(CONFIG):isEmpty(GLOBAL_PRI_INCLUDED){
+!isEmpty(_PRO_FILE_):!isEmpty(CONFIG):isEmpty(RUNTIME_GLOBAL_PRI_INCLUDED){
 # commented out, seems like there is no need for this var, but let's wait
-false:GLOBAL_PRI_INCLUDED=1
+RUNTIME_GLOBAL_PRI_INCLUDED=1
 
 COMPILER = $$(CXX)
+!isEmpty(QMAKE_GCC_MAJOR_VERSION) {
+	COMPILER_VERSION=$${QMAKE_GCC_MAJOR_VERSION}.$${QMAKE_GCC_MINOR_VERSION}
+}
 
 COMPILER_IS_ARM = $$find(COMPILER, arm-.*)
 
 PYTHONQTALL_CONFIG=PythonQtCore
 
-count(COMPILER_IS_ARM, 1) {
-	ARCHITECTURE = arm
-} else {
-	ARCHITECTURE = x86
-}
-
-win32 {
-	PLATFORM = windows
-}
-
-unix:!macx {
-	PLATFORM = linux
-}
-
-macx {
-	PLATFORM = mac
-}
-
 CONFIG *= qt
+
+CONFIG -= app_bundle
 
 !win32:CONFIG *= use_gold_linker
 #CONFIG *= fat-lto
@@ -66,16 +53,12 @@ release:CONFIG -= debug
 no-sanitizers: CONFIG *= nosanitizers
 CONFIG = $$unique(CONFIG)
 
-CONFIG(debug) {
-	isEmpty(CONFIGURATION): CONFIGURATION = $$ARCHITECTURE-debug
-	unix {
+QMAKE_CXXFLAGS_RELEASE_WITH_DEBUGINFO *= -Og
+QMAKE_CXXFLAGS_DEBUG *= -Og
+
+unix:debug {
 		QMAKE_CXXFLAGS += -coverage
 		QMAKE_LFLAGS += -coverage
-	}
-	CONFIGURATION_SUFFIX=-d
-} else {
-	isEmpty(CONFIGURATION): CONFIGURATION = $$ARCHITECTURE-release
-	CONFIGURATION_SUFFIX=
 }
 
 !gcc4:!gcc5:!clang:!win32:gcc:*-g++*:system($$QMAKE_CXX --version | grep -qEe '"\\<5\\.[0-9]+\\."' ){ CONFIG += gcc5 }
@@ -84,9 +67,8 @@ CONFIG(debug) {
 GLOBAL_PWD = $$absolute_path($$PWD)
 GLOBAL_OUTPWD = $$absolute_path($$OUT_PWD)
 
-
 isEmpty(GLOBAL_DESTDIR) {
-	GLOBAL_DESTDIR = $$GLOBAL_OUTPWD/bin/$$CONFIGURATION
+	GLOBAL_DESTDIR = $$GLOBAL_OUTPWD/bin
 }
 isEmpty(DESTDIR) {
 	DESTDIR = $$GLOBAL_DESTDIR
@@ -102,20 +84,19 @@ isEmpty(TARGET) {
 	isEmpty(R):TARGET = $$TARGET$$CONFIGURATION_SUFFIX
 }
 
-equals(TEMPLATE, app) {
-	!no_rpath {
-		unix:!macx {
-			QMAKE_LFLAGS += -Wl,-rpath-link,$$GLOBAL_DESTDIR
-			QMAKE_LFLAGS += -Wl,-O1,-rpath,\'\$$ORIGIN\'
-		} macx {
-			QMAKE_LFLAGS += -rpath @executable_path
-			QMAKE_LFLAGS += -rpath @executable_path/../Lib
-			QMAKE_LFLAGS += -rpath @executable_path/../Frameworks
-			QMAKE_LFLAGS += -rpath @executable_path/../../../
-		}
+!no_rpath {
+	unix:!macx {
+		QMAKE_LFLAGS += -Wl,-rpath-link,$$GLOBAL_DESTDIR
+		QMAKE_LFLAGS += -Wl,-O1,-rpath,\'\$$ORIGIN\'
+	} macx {
+		QMAKE_LFLAGS += -rpath @executable_path
+		QMAKE_LFLAGS += -rpath @executable_path/../Lib
+		QMAKE_LFLAGS += -rpath @executable_path/../Frameworks
+		QMAKE_LFLAGS += -rpath @executable_path/../../../
 	}
-} else:equals(TEMPLATE, lib){
+}
 
+equals(TEMPLATE, lib){
 	CONFIG += create_pc create_libtool
 	QMAKE_PKGCONFIG_NAME=$$TARGET
 	QMAKE_PKGCONFIG_PREFIX = $$INSTALLBASE
@@ -126,10 +107,10 @@ equals(TEMPLATE, app) {
 }
 
 #Workaround for a known gcc/ld (before 7.3/bionic) issue
-use_gold_linker:!clang: QMAKE_LFLAGS += -Wl,--disable-new-dtags
+#use_gold_linker:!clang: QMAKE_LFLAGS += -Wl,--disable-new-dtags
 
 macx-clang {
-	QMAKE_MACOSX_DEPLOYMENT_TARGET=10.9
+#	QMAKE_MACOSX_DEPLOYMENT_TARGET=10.12
 	QMAKE_LFLAGS_SONAME = -Wl,-install_name,@rpath/
 }
 
@@ -142,30 +123,50 @@ macx-clang {
 	CONFIG += sanitizer
 }
 
-unix:!nosanitizers {
+!nosanitizers {
 
 	# seems like we want USan always, but are afraid of ....
 	!CONFIG(sanitize_address):!CONFIG(sanitize_thread):!CONFIG(sanitize_memory):!CONFIG(sanitize_kernel_address) {
 		# Ubsan is turned on by default
-		CONFIG += sanitizer sanitize_undefined
+		#CONFIG += sanitizer sanitize_undefined
+		#QMAKE_SANITIZE_UNDEFINED_CXXFLAGS += -fsanitize-trap=undefined -fsanitize-undefined-trap-on-error
 	}
 
-
+	CONFIG(sanitize_address) {
+	# GCC 5.5 does not know this
+	#	QMAKE_SANITIZE_ADDRESS_CXXFLAGS += -fsanitize-address-use-after-scope
+		#!clang:QMAKE_LFLAGS_RELEASE *= -static-libasan
+	}
 	#LSan can be used without performance degrade even in release build
 	#But at the moment we can not, because of Qt  problems
-	CONFIG(debug):!CONFIG(sanitize_address):!CONFIG(sanitize_thread):!macx-clang { CONFIG += sanitize_leak }
-
-	sanitize_leak {
-		QMAKE_CFLAGS += -fsanitize=leak
-		QMAKE_CXXFLAGS += -fsanitize=leak
-		QMAKE_LFLAGS += -fsanitize=leak
+	CONFIG(debug):!CONFIG(sanitize_address):!CONFIG(sanitize_memory):!CONFIG(sanitize_thread):!macx-clang {
+	     CONFIG += sanitize_leak
 	}
 
-	sanitize_undefined:macx-clang {
-		# sometimes runtime is missing in clang. this hack allows to avoid runtime dependency.
-		QMAKE_SANITIZE_UNDEFINED_CFLAGS += -fsanitize-trap=undefined
-		QMAKE_SANITIZE_UNDEFINED_CXXFLAGS += -fsanitize-trap=undefined
-		QMAKE_SANITIZE_UNDEFINED_LFLAGS += -fsanitize-trap=undefined
+	sanitize_leak {
+		QMAKE_CFLAGS *= -fsanitize=leak
+		QMAKE_CXXFLAGS *= -fsanitize=leak
+		QMAKE_LFLAGS *= -fsanitize=leak
+		#!clang:QMAKE_LFLAGS_RELEASE *= -static-liblsan
+	}
+
+	sanitize_memory {
+		QMAKE_CFLAGS *= -fsanitize-memory-use-after-dtor -fsanitize-memory-track-origins
+		QMAKE_CXXFLAGS *= -fsanitize-memory-use-after-dtor -fsanitize-memory-track-origins
+	}
+
+	sanitize_undefined {
+		# This hack allows to avoid runtime dependency.
+		win32:isEmpty(TRIK_SANITIZE_UNDEFINED_FLAGS):TRIK_SANITIZE_UNDEFINED_FLAGS = -fsanitize-undefined-trap-on-error
+
+		QMAKE_SANITIZE_UNDEFINED_CFLAGS *= $$TRIK_SANITIZE_UNDEFINED_FLAGS
+		QMAKE_SANITIZE_UNDEFINED_CXXFLAGS *= $$TRIK_SANITIZE_UNDEFINED_FLAGS
+		QMAKE_SANITIZE_UNDEFINED_LFLAGS *= $$TRIK_SANITIZE_UNDEFINED_FLAGS
+		#!clang:QMAKE_LFLAGS_RELEASE *= -static-libubsan
+	}
+
+	sanitize_thread {
+		#!clang:QMAKE_LFLAGS_RELEASE *= -static-libtsan
 	}
 
 	gcc5 {
@@ -176,41 +177,44 @@ unix:!nosanitizers {
 		# They can change in some version of Qt, keep track of it.
 		# By the way, simply setting QMAKE_CFLAGS, QMAKE_CXXFLAGS and QMAKE_LFLAGS instead of those used below
 		# will not work due to arguments order ("-fsanitize=undefined" must be declared before "-fno-sanitize=vptr").
-			QMAKE_SANITIZE_UNDEFINED_CFLAGS += -fno-sanitize=vptr
-			QMAKE_SANITIZE_UNDEFINED_CXXFLAGS += -fno-sanitize=vptr
-			QMAKE_SANITIZE_UNDEFINED_LFLAGS += -fno-sanitize=vptr
+
+# Useless since 2019? Commented out.
+#			QMAKE_SANITIZE_UNDEFINED_CFLAGS += -fno-sanitize=vptr
+#			QMAKE_SANITIZE_UNDEFINED_CXXFLAGS += -fno-sanitize=vptr
+#			QMAKE_SANITIZE_UNDEFINED_LFLAGS += -fno-sanitize=vptr
 		}
 	}
 
-	CONFIG(release){
-		QMAKE_CFLAGS += -fsanitize-recover=all
-		QMAKE_CXXFLAGS += -fsanitize-recover=all
-	} else {
-		QMAKE_CFLAGS += -fsanitize-recover=undefined
-		QMAKE_CXXFLAGS += -fsanitize-recover=undefined
-	}
+	unix {
+		QMAKE_CFLAGS_RELEASE += -fsanitize-recover=all
+		QMAKE_CXXFLAGS_RELEASE += -fsanitize-recover=all
 
+		QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO += -fno-sanitize-recover=all
+		QMAKE_CXXFLAGS_RELEASE_WITH_DEBUGINFO += -fno-sanitize-recover=all
+
+		QMAKE_CFLAGS_DEBUG  += -fno-sanitize-recover=all
+		QMAKE_CXXFLAGS_DEBUG += -fno-sanitize-recover=all
+	}
 }
 
-OBJECTS_DIR = .build/$$CONFIGURATION/obj
-MOC_DIR = .build/$$CONFIGURATION/moc
-RCC_DIR = .build/$$CONFIGURATION/rcc
-UI_DIR = .build/$$CONFIGURATION/ui
-
-PRECOMPILED_HEADER = $$PWD/pch.h
-CONFIG += precompile_header
-QMAKE_CXX_FLAGS *= -Winvalid-pch
+precompile_header {
+	PRECOMPILED_HEADER = $$PWD/pch.h
+	QMAKE_CXXFLAGS *= -Wno-error=invalid-pch
+}
 
 INCLUDEPATH += $$_PRO_FILE_PWD_ \
+	$$_PRO_FILE_PWD_/include \
 	$$_PRO_FILE_PWD_/include/$$PROJECT_NAME \
 
 
 THIS_IS_QS_LOG=$$find(PROJECT_NAME, [qQ]s[lL]og)
 isEmpty(THIS_IS_QS_LOG) {
-	INCLUDEPATH += $$GLOBAL_PWD/qslog
+	INCLUDEPATH += $$GLOBAL_PWD/qslog/qslog
 }
 
-CONFIG += c++11
+CONFIG += c++14
+
+DEFINES += QT_FORCE_ASSERTS
 
 QMAKE_CXXFLAGS += -pedantic-errors -Wextra -Werror
 
@@ -222,13 +226,32 @@ gcc5 | clang {
 
 clang {
 	#treat git submodules as system path
-	SYSTEM_INCLUDE_PREFIX_OPTION += $$system(git submodule status 2>/dev/null | sed $$shell_quote('s/^.[0-9a-fA-F]* \\([^ ]*\\).*$/--system-header-prefix=\\1/g'))
+	SYSTEM_INCLUDE_PREFIX_OPTION += $$system(git submodule status 2>/dev/null | sed $$shell_quote('s/^.[0-9a-fA-F]* \\([^ ]*\\).*$/-isystem=\\1/g'))
 
 	#treat Qt includes as system headers
-	SYSTEM_INCLUDE_PREFIX_OPTION += --system-header-prefix=$$[QT_INSTALL_HEADERS]
 
-	QMAKE_CXXFLAGS += $$SYSTEM_INCLUDE_PREFIX_OPTION
+	SYSTEM_INCLUDE_PREFIX_OPTION +=\
+		-cxx-isystem$$shell_quote($$[QT_INSTALL_HEADERS]) \
+		--system-header-prefix=$$shell_quote($$[QT_INSTALL_LIBS]) \
+
+	for(module, QT) {
+	    equals(module, "testlib"): module = test
+	    moduleList = $$split(module, )
+	    SYSTEM_INCLUDE_PREFIX_OPTION += \
+		--system-header-prefix=Qt$$upper($$take_first(moduleList))$$join(moduleList, )
+	}
+	unset(moduleList)
 }
+
+gcc {
+	#treat Qt includes as system headers
+	#but -isystem causes problems in OE thud
+	!count(COMPILER_IS_ARM, 1):SYSTEM_INCLUDE_PREFIX_OPTION *= -isystem $$[QT_INSTALL_HEADERS]
+}
+
+QMAKE_CXXFLAGS += $$SYSTEM_INCLUDE_PREFIX_OPTION
+
+gcc:versionAtLeast(QT_VERSION, 5.14.2):QMAKE_CXXFLAGS *= -Wno-error=deprecated-declarations
 
 false:clang {
 # Problem from Qt system headers
@@ -248,8 +271,7 @@ QMAKE_CXXFLAGS += -Werror=cast-qual -Werror=write-strings -Werror=redundant-decl
 			-Werror=non-virtual-dtor -Wno-error=overloaded-virtual \
 			-Werror=uninitialized -Werror=init-self
 
-
-
+gcc4:QMAKE_CXXFLAGS += -Wno-error=missing-field-initializers
 
 # Simple function that checks if given argument is a file or directory.
 # Returns false if argument 1 is a file or does not exist.
@@ -303,7 +325,7 @@ defineTest(interfaceIncludes) {
 	PROJECTS = $$1
 
 	for(PROJECT, PROJECTS) {
-		INCLUDEPATH += $$GLOBAL_PWD/$$PROJECT/include
+		INCLUDEPATH *= $$GLOBAL_PWD/$$PROJECT/include
 	}
 
 	export(INCLUDEPATH)
@@ -389,7 +411,7 @@ defineTest(installAdditionalSharedFiles) {
 		additionalSharedFiles.files += $$FILES
 		additionalSharedFiles.path = $$INSTALL_ROOT/usr/share/trikRuntime/
 
-		INSTALLS += additionalSharedFiles
+		INSTALLS *= additionalSharedFiles
 
 		export(additionalSharedFiles.path)
 		export(additionalSharedFiles.files)
@@ -397,24 +419,13 @@ defineTest(installAdditionalSharedFiles) {
 	}
 }
 
-defineTest(noPch) {
-	CONFIG -= precompile_header
-	PRECOMPILED_HEADER =
-	export(CONFIG)
-	export(PRECOMPILED_HEADER)
-}
-
 defineTest(enableFlagIfCan) {
-  system(echo $$shell_quote(int main(){return 0;}) | $$QMAKE_CXX $$QMAKE_CXXFLAGS $$1 -x c++ -c - -o $$system(mktemp) 2>/dev/null ) {
-    QMAKE_CXXFLAGS += $$1
-    export(QMAKE_CXXFLAGS)
+  system(bash -c $$system_quote(echo $$shell_quote(int main(){return 0;}) | $$QMAKE_CXX $$QMAKE_CXXFLAGS $$1 -x c++ -c - -o $$system(bash -c mktemp) 2>/dev/null) ) {
+	QMAKE_CXXFLAGS += $$1
+	export(QMAKE_CXXFLAGS)
   } else {
-    message(Cannot enable $$1)
+	message(Cannot enable $$1)
   }
 }
 
-
-CONFIG(noPch) {
-	noPch()
-}
 } # GLOBAL_PRI_INCLUDED

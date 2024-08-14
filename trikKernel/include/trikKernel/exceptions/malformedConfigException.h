@@ -24,15 +24,15 @@
 namespace trikKernel {
 
 /// Exception that is thrown when something is wrong with runtime configuration files.
-class MalformedConfigException : public TrikRuntimeException
+class TRIKKERNEL_EXPORT MalformedConfigException : public TrikRuntimeException
 {
 public:
 	/// Constructor.
 	/// @param errorMessage - string message that specifies what was wrong.
-	MalformedConfigException(const QString &errorMessage)
-		: mErrorMessage(errorMessage)
+	explicit MalformedConfigException(const QString &errorMessage)
+		: TrikRuntimeException(QString("Configuration file malformed: %1").arg(errorMessage))
+		, mErrorMessage(errorMessage)
 	{
-		QLOG_ERROR() << "Configuration file malformed:" << errorMessage;
 	}
 
 	/// Constructor.

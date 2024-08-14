@@ -20,7 +20,7 @@
 
 #include "cameraImplementationInterface.h"
 
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -39,9 +39,9 @@ public:
 	~ImitationCameraImplementation() override = default;
 
 private:
-	QStringList filters;
-	QFileInfoList filesList;
-	int cur {-1};
+	QStringList mFilters;
+	QFileInfoList mFiles;
+	int mCurrentFileIndex {-1};
 };
 
 }

@@ -12,26 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TEMPLATE = subdirs
-
+TEMPLATE = lib
 include(../global.pri)
+TRANSLATIONS_DIR=$$DESTDIR/translations/
+LRELEASE_DIR=$$DESTDIR/translations/
 
-win32 {
-	DESTDIR ~= s,/,\\,g
-	system("cmd.exe /C \"xcopy *.qm $$DESTDIR\\translations\\ /s /e /y\"")
-	system("cmd.exe /C \"xcopy *.ini $$DESTDIR\\translations\\ /s /e /y\"")
-}
-else {
-	system(mkdir -p $$DESTDIR/translations/; find ./ -name *.qm -exec rsync -R {} $$DESTDIR/translations \\;)
-	system(mkdir -p $$DESTDIR/translations/; find ./ -name *.ini -exec rsync -R {} $$DESTDIR/translations \\;)
-}
+TRANSLATIONS += \
+        $$PWD/trikRuntime_ru.ts \
+        $$PWD/trikRuntime_fr.ts \
+        $$PWD/trikRuntime_de.ts \
 
-OTHER_FILES += \
-	$$PWD/ru/locale.ini \
-	$$PWD/fr/locale.ini \
+CONFIG += lrelease
 
 OTHER_FILES += \
-	$$PWD/ru/*.ts \
-	$$PWD/fr/*.ts \
-
+        $$PWD/*.ts \
 installAdditionalSharedFiles($$DESTDIR/translations)

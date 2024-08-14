@@ -20,16 +20,24 @@ SUBDIRS = \
 	trikCameraPhotoTests \
 	trikCommunicatorTests \
 	trikKernelTests \
-	trikScriptRunnerTests \
+	trikJsRunnerTests \
 	testUtils \
 
 #	minimalCppApp
-
+!trik_nopython {
+  SUBDIRS += trikPyRunnerTests
+  trikPyRunnerTests.depends = thirdparty testUtils
+}
 
 thirdparty.file = thirdparty/googletest.pro
 
 trikKernelTests.depends = thirdparty testUtils
-trikScriptRunnerTests.depends = thirdparty testUtils
+trikJsRunnerTests.depends = thirdparty testUtils
+
 trikCommunicatorTests.depends = thirdparty testUtils
 selftest.depends = thirdparty testUtils
 trikCameraPhotoTests.depends = thirdparty testUtils
+
+OTHER_FILES += \
+    $$PWD/test-model-config.xml \
+    $$PWD/test-system-config.xml \

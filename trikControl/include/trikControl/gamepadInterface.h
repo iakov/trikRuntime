@@ -16,7 +16,7 @@
 
 #include <QtCore/QObject>
 
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -51,6 +51,12 @@ public slots:
 	/// Returns true if a gamepad is currently connected to a robot.
 	virtual bool isConnected() const = 0;
 
+	/// Disconnects a gamepad.
+	/// Emits `disconnected` signal and then resets button state if a gamepad was connected to a robot.
+	/// Returns true if a gamepad was connected
+	virtual bool disconnect() = 0;
+
+
 signals:
 	/// Emitted when user pulls finger off a pad.
 	/// @param pad - id of a pad on which the event occurs.
@@ -71,13 +77,19 @@ signals:
 	/// @param pressed - 1 if button was pressed, 0 if it was released.
 	void button(int button, int pressed);
 
+	/// Any custom message for simple extention via gamepad protocol/TCP port
+	/// `custom my message` is delivered as "my message"
+	void custom(const QString &s);
+
 	/// Emitted when a gamepad connects to robot. Note that robot may have several connected gamepads, and this signal
 	/// will be emitted only when the first gamepad connects to robot.
 	void connected();
 
 	/// Emitted when last gamepad disconnects from robot. Note that robot may have several connected gamepads
 	/// at the same time, so when one gamepad disconnects, this signal will not be emitted.
-	void disconnect();
+	void disconnected();
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::GamepadInterface *)

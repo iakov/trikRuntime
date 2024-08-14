@@ -17,9 +17,9 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cerrno>
+#include <cstring>
+#include <cstdlib>
 #include <unistd.h>
 #include <QtCore/QEventLoop>
 #include <QtCore/QTimer>
@@ -34,7 +34,7 @@
 // convertion funtions
 namespace {
 
-	inline unsigned clip255(int x) { return x >= 255 ? 255 : (x <= 0)? 0 : x; }
+	inline unsigned char clip255(int x) { return x >= 255 ? 255 : (x <= 0)? 0 : static_cast<uint8_t>(x); }
 
 	QVector<uint8_t> yuyvToRgb(const QVector<uint8_t> &shot, int height, int width) {
 		// yuyv (yuv422) convertion to rgb888
@@ -50,13 +50,23 @@ namespace {
 				startIndex += 4;
 
 				auto resRgb = &result[(row * width + col) * 3];
-				resRgb[0] = clip255(y0 + 1.402 * (cr - 128)); // red
-				resRgb[1] = clip255(y0 - 0.3441 * (cb - 128) - 0.7141 * (cr - 128)); // green
-				resRgb[2] = clip255(y0 + 1.772 * (cb - 128)); // blue
+//				resRgb[0] = clip255(y0 + 1.402 * (cr - 128)); // red
+//				resRgb[1] = clip255(y0 - 0.3441 * (cb - 128) - 0.7141 * (cr - 128)); // green
+//				resRgb[2] = clip255(y0 + 1.772 * (cb - 128)); // blue
 
-				resRgb[3] = clip255(y1 + 1.402 * (cr - 128)); // red
-				resRgb[4] = clip255(y1 - 0.3441 * (cb - 128) - 0.7141 * (cr - 128)); // green
-				resRgb[5] = clip255(y1 + 1.772 * (cb - 128)); // blue
+//				resRgb[3] = clip255(y1 + 1.402 * (cr - 128)); // red
+//				resRgb[4] = clip255(y1 - 0.3441 * (cb - 128) - 0.7141 * (cr - 128)); // green
+//				resRgb[5] = clip255(y1 + 1.772 * (cb - 128)); // blue
+
+				const auto alpha = 180 * (cr - 128) / 128;
+				const auto beta  = 45 * (cb - 128) / 128;
+				resRgb[0] = clip255(y0 + alpha); // red
+				resRgb[1] = clip255(y0 - beta - alpha / 2); // green
+				resRgb[2] = clip255(y0 + 5 * beta); // blue
+
+				resRgb[3] = clip255(y1 + alpha); // red
+				resRgb[4] = clip255(y1 - beta - alpha / 2); // green
+				resRgb[5] = clip255(y1 + 5 * beta); // blue
 			}
 		}
 
@@ -66,31 +76,31 @@ namespace {
 	QVector<uint8_t> yuv422pToRgb(const QVector<uint8_t> &shot, int height, int width) {
 		// yuv422p convertion to rgb888
 		QVector<uint8_t> result(height * width * 3);
-		if ( width <= 0 || height <= 0 )
+		if ( width <= 0 || height <= 0 ) {
 			return result;
+		}
 		const auto Y = &shot[0];
-		const auto U = &shot[width * height];
-		const auto V = &shot[3 * width * height / 2];
+		const auto UV = &shot[width * height];
 
 		for (auto row = 0; row < height; ++row) {
 			for (auto col = 0; col < width; col+=2) {
 				auto startIndex = row * width + col;
-				auto y1 = Y[startIndex] - 16;
-				auto y2 = Y[startIndex+1] - 16;
-				auto u  = U[startIndex>>1] - 128;
-				auto v  = V[startIndex>>1] - 128;
+				int const y1 = Y[startIndex] - 16;
+				int const y2 = Y[startIndex+1] - 16;
+				int const u  = UV[startIndex] - 128;
+				int const v  = UV[startIndex+1] - 128;
 				auto _298y1 = 298 * y1;
 				auto _298y2 = 298 * y2;
 				auto _409v  = 409 * v;
 				auto _100u  = -100 * u;
 				auto _516u  = 516 * u;
 				auto _208v  = -208 * v;
-				auto r1 = clip255 ((_298y1 + _409v + 128) >> 8);
+				auto r1 = clip255 ((_298y1 + _516u + 128) >> 8);
 				auto g1 = clip255 ((_298y1 + _100u + _208v + 128) >> 8);
-				auto b1 = clip255 ((_298y1 + _516u + 128) >> 8);
-				auto r2 = clip255 ((_298y2 + _409v + 128) >> 8);
+				auto b1 = clip255 ((_298y1 + _409v + 128) >> 8);
+				auto r2 = clip255 ((_298y2 + _516u + 128) >> 8);
 				auto g2 = clip255 ((_298y2 + _100u + _208v + 128) >> 8);
-				auto b2 = clip255 ((_298y2 + _516u + 128) >> 8);
+				auto b2 = clip255 ((_298y2 + _409v + 128) >> 8);
 
 				auto rgb = &result[startIndex*3];
 				rgb[0] = r1;
@@ -113,13 +123,9 @@ namespace {
 	}
 }
 
-
-template <typename T> void reset(T &x) { ::memset(&x, 0, sizeof(x)); }
-
 TrikV4l2VideoDevice::TrikV4l2VideoDevice(const QString &inputFile)
 	: fileDevicePath(inputFile), mConvertFunc(convertToEmpty)
 {
-	reset(mFormat);
 	openDevice();
 	setFormat();
 }
@@ -140,9 +146,8 @@ int TrikV4l2VideoDevice::xioctl(unsigned long request, void *arg, const QString 
 		}
 
 		if (request != VIDIOC_ENUM_FMT || errno != EINVAL) {
-			QLOG_ERROR() << "ioctl code " << QString("%1").arg(request, 0, 16) << " failed";
-			QLOG_ERROR() << errno << ", " << strerror(errno);
-			QLOG_ERROR() << possibleError;
+			QLOG_ERROR() << "ioctl code " << QString("%1").arg(request, 0, 16) << " failed with errno ="
+			<< errno << ", " << strerror(errno) << ":" << possibleError;
 		}
 	}
 
@@ -151,14 +156,13 @@ int TrikV4l2VideoDevice::xioctl(unsigned long request, void *arg, const QString 
 
 void TrikV4l2VideoDevice::openDevice()
 {
-	mFileDescriptor = ::v4l2_open(fileDevicePath.toStdString().c_str(), O_RDWR /* required */ | O_NONBLOCK, 0);
+	mFileDescriptor = ::v4l2_open(fileDevicePath.toStdString().c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC, 0);
 
 	if (mFileDescriptor < 0) {
 		QLOG_ERROR() << "Cannot open '" << fileDevicePath << "', return code is " << mFileDescriptor ;
 	} else {
 		QLOG_INFO() << "Open v4l2 camera device" <<  fileDevicePath << ",fd =" << mFileDescriptor;
-		v4l2_capability cap;
-		reset(cap);
+		v4l2_capability cap {};
 		unsigned requested = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_CAPTURE;
 
 		if(!xioctl(VIDIOC_QUERYCAP, &cap, "VIDIOC_QUERYCAP failed")
@@ -185,15 +189,14 @@ void TrikV4l2VideoDevice::setFormat()
 	char descPixelFmt[32] = {0}; // 32 - size of v4l2_fmtdesc.description
 	__u32 fmtIdx = 0;
 	do {
-		v4l2_fmtdesc fmtTry;
-		reset(fmtTry);
+		v4l2_fmtdesc fmtTry {};
 		fmtTry.index = fmtIdx;
 		fmtTry.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		if ( ! xioctl(VIDIOC_ENUM_FMT, &fmtTry, "VIDIOC_ENUM_FMT fail")) {
+		if ( ! xioctl(VIDIOC_ENUM_FMT, &fmtTry, "VIDIOC_ENUM_FMT")) {
 
-			QLOG_INFO() << "V4l2: available format: " << fmtTry.pixelformat;
+			QLOG_INFO() << "V4l2: available format: " << hex << fmtTry.pixelformat;
 			mFormat.fmt.pix.pixelformat = fmtTry.pixelformat;
-			memcpy(descPixelFmt, fmtTry.description, 32);
+			memcpy(descPixelFmt, fmtTry.description, sizeof(descPixelFmt));
 
 			// have decoding of those formats:
 			// V4L2_PIX_FMT_YUV422P
@@ -219,58 +222,51 @@ void TrikV4l2VideoDevice::setFormat()
 	}
 
 	v4l2_std_id stdid = V4L2_STD_625_50;
-	if (xioctl(VIDIOC_S_STD, &stdid, "VIDIOC_S_STD in TrikV4l2VideoDevice::setFormat() failed")) {
-		if(!xioctl(VIDIOC_G_STD, &stdid, "VIDIOC_G_STD in TrikV4l2VideoDevice::setFormat() failed")) {
+	if (xioctl(VIDIOC_S_STD, &stdid, "VIDIOC_S_STD in TrikV4l2VideoDevice::setFormat()")) {
+		if(!xioctl(VIDIOC_G_STD, &stdid, "VIDIOC_G_STD in TrikV4l2VideoDevice::setFormat()")) {
 			QLOG_INFO() << "VIDIOC_G_STD returned" << QString("%1").arg(stdid, 0, 16);
 		}
 	}
-
-	if (xioctl (VIDIOC_TRY_FMT, &mFormat, "VIDIOC_TRY_FMT in TrikV4l2VideoDevice::setFormat() failed")) {
-		return;
+	// `v4l2-compliance -d /dev/video2` reports problems for Logitech C920 with old Kernel
+	// fail: ../../../v4l-utils-1.10.1/utils/v4l2-compliance/v4l2-test-formats.cpp(662): Video Capture is valid, but no TRY_FMT was implemented
+	// test VIDIOC_TRY_FMT: FAIL
+	// warn: ../../../v4l-utils-1.10.1/utils/v4l2-compliance/v4l2-test-formats.cpp(933): S_FMT cannot handle an invalid pixelformat.
+	// warn: ../../../v4l-utils-1.10.1/utils/v4l2-compliance/v4l2-test-formats.cpp(934): This may or may not be a problem. For more information see:
+	// warn: ../../../v4l-utils-1.10.1/utils/v4l2-compliance/v4l2-test-formats.cpp(935): http://www.mail-archive.com/linux-media@vger.kernel.org/msg56550.html
+	// fail: ../../../v4l-utils-1.10.1/utils/v4l2-compliance/v4l2-test-formats.cpp(418): expected EINVAL, but got 5 when getting format for buftype 1
+	// fail: ../../../v4l-utils-1.10.1/utils/v4l2-compliance/v4l2-test-formats.cpp(952): Video Capture is valid, but no S_FMT was implemented
+	// test VIDIOC_S_FMT: FAIL
+	if (xioctl (VIDIOC_TRY_FMT, &mFormat, "VIDIOC_TRY_FMT in TrikV4l2VideoDevice::setFormat()")) {
+		QLOG_INFO () << "Read error above, but sometimes it is ok to ignore";
 	}
-	if (xioctl (VIDIOC_S_FMT, &mFormat, "VIDIOC_S_FMT in TrikV4l2VideoDevice::setFormat() failed")) {
-		return;
+	if (xioctl (VIDIOC_S_FMT, &mFormat, "VIDIOC_S_FMT in TrikV4l2VideoDevice::setFormat()")) {
+		QLOG_INFO () << "Read error above, but sometimes it is ok to ignore";
 	}
 }
 
 void TrikV4l2VideoDevice::closeDevice()
 {
-	if (mNotifier) {
-		mNotifier->setEnabled(false);
-		delete mNotifier;
-		mNotifier = nullptr;
-	}
-
+	mNotifier.reset();
 	if (::v4l2_close(mFileDescriptor)) {
-		 QLOG_ERROR() << "Failed to close v4l2 camera device, device path = " << fileDevicePath;
-		 return;
+		 QLOG_ERROR() << "Failed to close v4l2 camera device descriptor #" << mFileDescriptor
+						<< ", device path: " << fileDevicePath;
 	}
 
 	mFileDescriptor = -1;
-
-	QLOG_INFO() << "Close v4l2 camera device " <<  fileDevicePath;
+	QLOG_INFO() << "Closed v4l2 camera device " <<  fileDevicePath;
 }
 
 
 const QVector<uint8_t> & TrikV4l2VideoDevice::makeShot()
 {
 	QEventLoop loop;
-	QTimer watchdog;
-	watchdog.setSingleShot(true);
-	watchdog.setInterval(1000);
-	connect(&watchdog, &QTimer::timeout, &loop, [&]() {
-			QLOG_WARN() << "V4l2 makeShot termitated by watchdog timer";
-			loop.quit();
-		}, Qt::QueuedConnection);
-
-	connect(this, SIGNAL(dataReady()), &loop, SLOT(quit()),Qt::QueuedConnection);
-	watchdog.start();
-
+	connect(this, &TrikV4l2VideoDevice::dataReady, &loop, &QEventLoop::quit, Qt::QueuedConnection);
 	initMMAP();
 	startCapturing();
-
-	loop.exec();
-	watchdog.stop();
+	QTimer::singleShot(1000, &loop, [&loop](){loop.exit(-1);});
+	if (loop.exec() < 0) {
+		QLOG_WARN() << "V4l2 makeShot terminated by watchdog timer. Device not ready or misconfigured?";
+	}
 
 	stopCapturing();
 	freeMMAP();
@@ -278,20 +274,19 @@ const QVector<uint8_t> & TrikV4l2VideoDevice::makeShot()
 	constexpr auto IMAGE_WIDTH = 320;
 	constexpr auto IMAGE_HEIGHT = 240;
 	// expect yuv format, 4 bytes for 2 pixels
-	if (mFrame.size() / 4 * 2 != IMAGE_HEIGHT * IMAGE_WIDTH) {
-		QLOG_ERROR() << "V4l2: unexpected size of getted image, expect " << IMAGE_HEIGHT * IMAGE_WIDTH
-				<< "bytes, got " << mFrame.size() / 4 * 2 << " bytes";
+	if (mFrame.size() != IMAGE_HEIGHT * IMAGE_WIDTH * 2) {
+		QLOG_ERROR() << "V4l2: unexpected size of obtained image (" << mFrame.size() << "instead of"
+					 << IMAGE_HEIGHT * IMAGE_WIDTH * 2  << ")";
+		QVector<uint8_t>().swap(mFrame);
+	} else {
+		mConvertFunc(mFrame, IMAGE_HEIGHT, IMAGE_WIDTH).swap(mFrame);
 	}
-
-	mFrame = mConvertFunc(mFrame, IMAGE_HEIGHT, IMAGE_WIDTH);
 	return mFrame;
 }
 
 void TrikV4l2VideoDevice::initMMAP()
 {
-	v4l2_requestbuffers req;
-	reset(req);
-
+	v4l2_requestbuffers req{};
 	req.count = 1;
 	req.type = mFormat.type;
 	req.memory = V4L2_MEMORY_MMAP;
@@ -305,8 +300,7 @@ void TrikV4l2VideoDevice::initMMAP()
 	buffers.resize(req.count);
 
 	for (int i = 0; i < buffers.size(); ++i) {
-		v4l2_buffer buf;
-		reset(buf);
+		v4l2_buffer buf{};
 		buf.type = mFormat.type;
 		buf.index = i;
 		buf.memory = V4L2_MEMORY_MMAP;
@@ -316,9 +310,9 @@ void TrikV4l2VideoDevice::initMMAP()
 		}
 
 		buffers[i].length = buf.length;
-		buffers[i].start = (uint8_t *) ::v4l2_mmap(nullptr, buf.length
+		buffers[i].start = static_cast<uint8_t *>(::v4l2_mmap(nullptr, buf.length
 							, PROT_READ | PROT_WRITE, MAP_SHARED
-							, mFileDescriptor, buf.m.offset);
+							, mFileDescriptor, buf.m.offset));
 
 		if (buffers[i].start == MAP_FAILED) {
 			QLOG_ERROR() << "mmap failed in TrikV4l2VideoDevice::initMMAP()";
@@ -331,9 +325,11 @@ void TrikV4l2VideoDevice::initMMAP()
 
 void TrikV4l2VideoDevice::startCapturing()
 {
+	mNotifier.reset(new QSocketNotifier(mFileDescriptor, QSocketNotifier::Read));
+	connect(&*mNotifier, &QSocketNotifier::activated, this, &TrikV4l2VideoDevice::readFrameData);
+
 	for(int i = 0; i < buffers.size(); ++i) {
-		v4l2_buffer buf;
-		reset(buf);
+		v4l2_buffer buf {};
 		buf.type = mFormat.type;
 		buf.memory = V4L2_MEMORY_MMAP;
 		buf.index = i;
@@ -350,59 +346,53 @@ void TrikV4l2VideoDevice::startCapturing()
 	}
 
 	QLOG_INFO() << "V4l2 camera: start capturing";
-	mNotifier = new QSocketNotifier(mFileDescriptor, QSocketNotifier::Read, this);
-	connect(mNotifier, SIGNAL(activated(int)), this, SLOT(readFrameData(int)), Qt::QueuedConnection);
 }
 
 void TrikV4l2VideoDevice::readFrameData(int fd) {
 	if (fd != mFileDescriptor) {
-		QLOG_ERROR() << "V4l2: readFrame data requested for incorrect fd="<<fd;
+		QLOG_ERROR() << "V4l2: readFrame data requested for incorrect fd=" << fd;
 		return;
 	}
 
 	mNotifier->setEnabled(false);
-	v4l2_buffer buf;
-	reset(buf);
+	v4l2_buffer buf{};
 	buf.type = mFormat.type;
 	buf.memory = V4L2_MEMORY_MMAP;
 
 	xioctl(VIDIOC_DQBUF, &buf, "V4l2 VIDIOC_DQBUF failed");
-	QVector<uint8_t> res;
 
 	if (buf.index < static_cast<decltype(buf.index)>(buffers.size())) {
-		auto & b = buffers[buf.index];
+		auto &b = buffers[buf.index];
 		if (buf.bytesused > 0) {
-			res.resize(buf.bytesused);
-			std::copy(b.start, b.start + buf.bytesused, res.begin());
-			QLOG_INFO() << "V4l2 captured " << buf.bytesused << "bytes into buf #" << buf.index;
+			mFrame.resize(buf.bytesused);
+			std::copy(b.start, b.start + buf.bytesused, mFrame.begin());
+			QLOG_DEBUG() << "V4l2 captured " << mFrame.size() << "bytes into buf #" << buf.index;
+		} else {
+			QLOG_INFO() << "V4l2 captured 0 bytes, reset internal frame buffer";
+			decltype(mFrame)().swap(mFrame);
 		}
-
-		mFrame.swap(res);
 		emit dataReady();
 	}
+	// WARN: Do not enable notifier until we store process data from mFrame variable!
 }
 
 void TrikV4l2VideoDevice::stopCapturing()
 {
 	v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-	if (xioctl(VIDIOC_STREAMOFF, &type, "V4l2 VIDIOC_STREAMOFF failed")) {
-		return;
+	if (!xioctl(VIDIOC_STREAMOFF, &type, "V4l2 VIDIOC_STREAMOFF failed")) {
+		QLOG_INFO() << "V4l2 camera: stopped capturing";
 	}
-
-	QLOG_INFO() << "V4l2 camera: stop capturing";
 }
 
 
 void TrikV4l2VideoDevice::freeMMAP()
 {
-	for(auto & b : buffers) {
+	for(auto &b : buffers) {
 		if (b.start != MAP_FAILED && ::v4l2_munmap(b.start, b.length)) {
 			QLOG_ERROR() << "Free MMAP error in TrikV4l2VideoDevice::freeMMAP() for buffer";
 		}
 	}
 
-	QLOG_INFO() << "Free MMAP for v4l2 camera";
+	QLOG_INFO() << "Free MMAP buffers for v4l2 finished";
 }
-
-

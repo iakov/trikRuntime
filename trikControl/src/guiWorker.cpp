@@ -26,6 +26,11 @@
 
 #include <QtGui/QPixmap>
 
+#include "QsLog.h"
+#include "utilities.h"
+
+#include <QPainterPath>
+
 using namespace trikControl;
 
 GuiWorker::GuiWorker()
@@ -34,6 +39,7 @@ GuiWorker::GuiWorker()
 
 void GuiWorker::init()
 {
+	qRegisterMetaType<QVector<int32_t>>("QVector<int32_t>");
 	mImageWidget.reset(new GraphicsWidget());
 	mImageWidget->setWindowState(Qt::WindowFullScreen);
 	mImageWidget->setWindowFlags(mImageWidget->windowFlags() | Qt::WindowStaysOnTopHint);
@@ -54,24 +60,47 @@ void GuiWorker::showImage(const QString &fileName)
 		mImagesCache.insert(fileName, pixmap);
 	}
 
-	mImageWidget->setPixmap(mImagesCache[fileName]);
+	mImageWidget->setPixmap(QPixmap(mImagesCache[fileName]));
 	repaintGraphicsWidget();
 }
 
-void GuiWorker::addLabel(const QString &text, int x, int y)
+void GuiWorker::show(const QVector<int32_t> &array, int width, int height, const QString &format)
 {
-	mImageWidget->addLabel(text, x, y);
+	auto img = Utilities::imageFromBytes(array, width, height, format);
+	if (img.isNull() && 0 != width * height) {
+		QPixmap pixmap(width, height);
+		QPainter painter;
+		painter.begin(&pixmap);
+		painter.fillRect(0, 0, width, height, QBrush(QColor(Qt::GlobalColor::lightGray), Qt::BrushStyle::SolidPattern));
+		QBrush brush(Qt::GlobalColor::red, Qt::BrushStyle::SolidPattern);
+		QPen pen(brush, (width+height)/20+1, Qt::PenStyle::SolidLine
+				, Qt::PenCapStyle::RoundCap, Qt::PenJoinStyle::MiterJoin);
+		painter.setBrush(brush);
+		painter.setPen(pen);
+		QPainterPath path;
+		path.moveTo(0, 0);
+		path.lineTo(width, height);
+		path.moveTo(width, 0);
+		path.lineTo(0, height);
+		painter.drawPath(path);
+		painter.end();
+		mImageWidget->setPixmap(std::move(pixmap));
+	} else {
+		mImageWidget->setPixmap(QPixmap::fromImage(std::move(img)));
+	}
+
+	repaintGraphicsWidget();
+}
+
+void GuiWorker::addLabel(const QString &text, int x, int y, int fontSize)
+{
+	mImageWidget->addLabel(text, x, y, fontSize);
 }
 
 void GuiWorker::removeLabels()
 {
 	mImageWidget->deleteLabels();
 	repaintGraphicsWidget();
-}
-
-void GuiWorker::deleteWorker()
-{
-	deleteLater();
 }
 
 void GuiWorker::setBackground(const QString &color)
@@ -158,5 +187,5 @@ void GuiWorker::repaintGraphicsWidget()
 
 QColor GuiWorker::colorByName(const QString &name)
 {
-	return QColor(name.toLower());
+	return {name.toLower()};
 }

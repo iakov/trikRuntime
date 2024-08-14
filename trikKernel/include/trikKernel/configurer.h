@@ -17,6 +17,7 @@
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QHash>
+#include "trikKernelDeclSpec.h"
 
 class QDomElement;
 
@@ -25,7 +26,7 @@ namespace trikKernel {
 /// Generic configuration helper, parses configuration XML files and presents configuration as a set of attributes
 /// with their values for each configurable device. Respects configuration overriding rules:
 /// Model config > device type config > device-port pair config > device class config
-class Configurer
+class TRIKKERNEL_EXPORT Configurer
 {
 public:
 	/// Constructor.
@@ -41,7 +42,7 @@ public:
 
 	/// Returns true if device is enabled in current configuration (either explicitly enabled in model configuration
 	/// or can not be disabled at all).
-	bool isEnabled(const QString deviceName) const;
+	bool isEnabled(const QString &deviceName) const;
 
 	/// Ports configured in model config.
 	QStringList ports() const;

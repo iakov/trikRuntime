@@ -20,7 +20,7 @@
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QHostAddress>
 
-#include "declSpec.h"
+#include "trikNetworkDeclSpec.h"
 
 namespace trikNetwork {
 
@@ -66,10 +66,10 @@ public:
 	/// are added/deleted to mConnections in TrikServer, but actually they are not added/deleted.
 	bool isValid() const;
 
-	/// Returns peer address of a connection, if it is open, or empty QHostAddress if connection is not established yet.
+	/// Returns peer address of a connection, if it is valid, or QHostAddress() if connection is not established yet.
 	QHostAddress peerAddress() const;
 
-	/// Returns peer port of a connection, if it is open, or -1 if connection is not established yet.
+	/// Returns peer port of a connection, if it is valid, or -1 if connection is not established yet.
 	int peerPort() const;
 
 	/// Creates socket and initializes incoming connection, shall be called when Connection is already in its own
@@ -81,10 +81,10 @@ public:
 	Q_INVOKABLE void send(const QByteArray &data);
 signals:
 	/// Emitted after connection becomes closed.
-	void disconnected(Connection *self);
+	void disconnected(trikNetwork::Connection *self);
 
 	/// Emitted after connection is established.
-	void connected(Connection *self);
+	void connected(trikNetwork::Connection *self);
 
 protected:
 	/// Creates socket and initializes outgoing connection, shall be called when Connection is already in its own
@@ -119,8 +119,8 @@ private:
 	/// Handles incoming data: sending version or processing received data.
 	void handleIncomingData(const QByteArray &data);
 
-	/// Connects all slots of this object to the appropriate signals.
-	void connectSlots();
+	/// Resets private socket, connects all slots of this object to the appropriate signals.
+	void resetSocket();
 
 	/// Parses current buffer content and splits it on complete messages.
 	void processBuffer();
@@ -129,7 +129,7 @@ private:
 	void doDisconnect();
 
 	/// Initializes keepalive and heartbeat timers.
-	void initKeepalive();
+	void restartKeepalive();
 
 	/// Buffer to accumulate parts of a message.
 	QByteArray mBuffer;

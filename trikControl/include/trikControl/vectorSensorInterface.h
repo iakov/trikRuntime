@@ -16,14 +16,12 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QVector>
-
+#include <trikKernel/timeVal.h>
+#include <trikControl/trikControlDeclSpec.h>
 #include "deviceInterface.h"
 
-#include "declSpec.h"
 
-namespace trikKernel {
-class TimeVal;
-}
+
 
 namespace trikControl {
 
@@ -42,3 +40,5 @@ public slots:
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::VectorSensorInterface *)

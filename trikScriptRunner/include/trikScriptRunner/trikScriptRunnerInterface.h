@@ -21,12 +21,75 @@
 #include <QtCore/QThread>
 #include <QtScript/QScriptEngine>
 
+#include <trikControl/batteryInterface.h>
+#include <trikControl/colorSensorInterface.h>
+#include <trikControl/displayInterface.h>
+#include <trikControl/encoderInterface.h>
+#include <trikControl/eventCodeInterface.h>
+#include <trikControl/eventDeviceInterface.h>
+#include <trikControl/eventInterface.h>
+#include <trikControl/gamepadInterface.h>
+#include <trikControl/gyroSensorInterface.h>
+#include <trikControl/i2cDeviceInterface.h>
+#include <trikControl/irCameraInterface.h>
+#include <trikControl/lineSensorInterface.h>
+#include <trikControl/motorInterface.h>
+#include <trikControl/objectSensorInterface.h>
+#include <trikControl/soundSensorInterface.h>
+#include <trikControl/sensorInterface.h>
+#include <trikControl/vectorSensorInterface.h>
+#include <trikControl/fifoInterface.h>
+#include <trikControl/keysInterface.h>
+#include <trikControl/ledInterface.h>
+#include <trikControl/markerInterface.h>
+#include <trikControl/lidarInterface.h>
+#include <trikNetwork/mailboxInterface.h>
+
+#include "trikScriptControlInterface.h"
+
+
+#define REGISTER_METATYPE(TYPE) \
+	qRegisterMetaType<TYPE*>(TYPE::staticMetaObject.className());
+
+/// Here we define a convenient template that registers all devices used in trik.
+/// When creating a new device(interface), you should append it to this list.
+/// So it lets you write the device just one time rather than append appropriate line to each place
+/// that uses devices.
+/// ATTENTION: do not forget to append newly created device to this list!
+#define REGISTER_DEVICES_WITH_TEMPLATE(TEMPLATE) \
+	TEMPLATE(trikControl::BatteryInterface) \
+	TEMPLATE(trikControl::ColorSensorInterface) \
+	TEMPLATE(trikControl::FifoInterface) \
+	TEMPLATE(trikControl::DisplayInterface) \
+	TEMPLATE(trikControl::EncoderInterface) \
+	TEMPLATE(trikControl::EventCodeInterface) \
+	TEMPLATE(trikControl::EventDeviceInterface) \
+	TEMPLATE(trikControl::EventInterface) \
+	TEMPLATE(trikControl::GamepadInterface) \
+	TEMPLATE(trikControl::GyroSensorInterface) \
+	TEMPLATE(trikControl::I2cDeviceInterface) \
+	TEMPLATE(trikControl::IrCameraInterface) \
+	TEMPLATE(trikControl::KeysInterface) \
+	TEMPLATE(trikControl::LedInterface) \
+	TEMPLATE(trikControl::LineSensorInterface) \
+	TEMPLATE(trikControl::MarkerInterface) \
+	TEMPLATE(trikControl::MotorInterface) \
+	TEMPLATE(trikControl::ObjectSensorInterface) \
+	TEMPLATE(trikControl::SoundSensorInterface) \
+	TEMPLATE(trikControl::SensorInterface) \
+	TEMPLATE(trikControl::VectorSensorInterface) \
+	TEMPLATE(trikNetwork::MailboxInterface) \
+	TEMPLATE(trikControl::LidarInterface) \
+	TEMPLATE(trikControl::PwmCaptureInterface) \
+
 namespace trikScriptRunner {
 
 enum class ScriptType { // must be 0, 1, ..
 	UNINITIALIZED = -1,
 	JAVASCRIPT,
+#ifndef TRIK_NOPYTHON
 	PYTHON,
+#endif
 	Size // should always be the last
 };
 
@@ -35,9 +98,8 @@ static constexpr typename std::underlying_type<ScriptType>::type to_underlying(S
 	return static_cast<std::underlying_type<ScriptType>::type>(t);
 }
 
-
 /// Interface for all script executors.
-class TrikScriptRunnerInterface : public QObject
+class TRIKSCRIPTRUNNER_EXPORT TrikScriptRunnerInterface : public QObject
 {
 	Q_OBJECT
 
@@ -51,6 +113,18 @@ public:
 	/// Gets all method names from executive objects (brick, script, etc.) from ScriptEngineWorker
 	/// (useful when used from outside of the TrikRuntime).
 	virtual QStringList knownMethodNames() const = 0;
+
+	struct Helper
+	{
+		/// Helper function collects all methods names from given metaObject.
+		/// If the returnType of given method name is registered in metaobject system,
+		/// newMetaObject is constructed and procedure is called recursively for it.
+		static void collectMethodNames(QSet<QString> &result, const QMetaObject *obj);
+	};
+
+
+	/// Get status of last direct command/script
+	virtual bool wasError() = 0;
 
 public slots:
 	/// Executes given script asynchronously. If some script is already executing, it will be aborted.
@@ -82,6 +156,9 @@ public slots:
 	/// Plays "beep" sound.
 	virtual void brickBeep() = 0;
 
+	/// Set working directory -- path to all project files
+	virtual void setWorkingDirectory(const QString &workingDir) = 0;
+
 signals:
 	/// Emitted when current script completes execution (for event-driven mode it means that script requested to quit
 	/// or was aborted).
@@ -100,7 +177,7 @@ signals:
 	void startedDirectScript(int scriptId);
 
 	/// Emitted when a message must be sent to a desktop.
-	void sendMessage(const QString &text);
+	void textInStdOut(const QString &text);
 };
 
 }

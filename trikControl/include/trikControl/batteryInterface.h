@@ -18,7 +18,7 @@
 
 #include "deviceInterface.h"
 
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -26,7 +26,6 @@ namespace trikControl {
 class TRIKCONTROL_EXPORT BatteryInterface : public QObject, public DeviceInterface
 {
 	Q_OBJECT
-
 public slots:
 	/// Returns current battery voltage in volts.
 	virtual float readVoltage() = 0;
@@ -36,3 +35,5 @@ public slots:
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::BatteryInterface*)

@@ -19,23 +19,22 @@
 
 #include <QtGui/QKeyEvent>
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-	#include <QtGui/QApplication>
-#else
-	#include <QtWidgets/QApplication>
-#endif
+#include <QtWidgets/QApplication>
+
+#include <QProcess>
 
 #include <trikControl/motorInterface.h>
 
 #include "fileManagerWidget.h"
 #include "wiFiModeWidget.h"
 #include "motorsWidget.h"
-#include "sensorsSelectionWidget.h"
 #include "communicationSettingsWidget.h"
 #include "informationWidget.h"
 #include "systemSettingsWidget.h"
 #include "languageSelectionWidget.h"
 #include "programmingWidget.h"
+
+#include "sensorsWidget.h"
 
 using namespace trikGui;
 
@@ -50,43 +49,47 @@ StartWidget::StartWidget(Controller &controller, QWidget *parent)
 	mTitleLabel.setText(tr("TRIK"));
 
 	mMenuModel.appendRow(new QStandardItem(FileManagerWidget::menuEntry()));
-	mMenuModel.appendRow(new QStandardItem(ProgrammingWidget::menuEntry()));
-
-	QStandardItem * const settingsItem = new QStandardItem(tr("Settings"));
-	mMenuModel.appendRow(settingsItem);
 
 	QStandardItem * const testingItem = new QStandardItem(tr("Testing"));
-	settingsItem->appendRow(testingItem);
+	mMenuModel.appendRow(testingItem);
 
-	testingItem->appendRow(new QStandardItem(
-			SensorsSelectionWidget::menuEntry(SensorsSelectionWidget::SensorType::analogSensor)));
+	mMenuModel.appendRow(new QStandardItem(WiFiModeWidget::menuEntry()));
+
+	if (mController.mailbox()) {
+		mMenuModel.appendRow(new QStandardItem(CommunicationSettingsWidget::menuEntry()));
+	}
+
+	mMenuModel.appendRow(new QStandardItem(LanguageSelectionWidget::menuEntry()));
+
+	QStandardItem * const moreItem = new QStandardItem(tr("More..."));
+	mMenuModel.appendRow(moreItem);
+
+
+	testingItem->appendRow(new QStandardItem(tr("Analog sensors")));
+	if (mController.brick().pwmCapturePorts().length() != 0) {
+		testingItem->appendRow(new QStandardItem(tr("PWM Capture")));
+	}
 
 	testingItem->appendRow(new QStandardItem(MotorsWidget::menuEntry(MotorInterface::Type::servoMotor)));
 	testingItem->appendRow(new QStandardItem(MotorsWidget::menuEntry(MotorInterface::Type::powerMotor)));
 
-	testingItem->appendRow(new QStandardItem(
-			SensorsSelectionWidget::menuEntry(SensorsSelectionWidget::SensorType::digitalSensor)));
+	testingItem->appendRow(new QStandardItem(tr("Digital sensors")));
 
-	testingItem->appendRow(new QStandardItem(
-			SensorsSelectionWidget::menuEntry(SensorsSelectionWidget::SensorType::encoder)));
+	testingItem->appendRow(new QStandardItem(tr("Encoders")));
 
-	QStandardItem * const networkItem = new QStandardItem(tr("Network and connectivity"));
-	settingsItem->appendRow(networkItem);
+	testingItem->appendRow(new QStandardItem(tr("Gyroscope")));
 
-	if (mController.mailbox()) {
-		networkItem->appendRow(new QStandardItem(CommunicationSettingsWidget::menuEntry()));
-	}
+	testingItem->appendRow(new QStandardItem(tr("Accelerometer")));
 
-	networkItem->appendRow(new QStandardItem(WiFiModeWidget::menuEntry()));
+	testingItem->appendRow(new QStandardItem(tr("Camera")));
 
-	QStandardItem * const systemItem = new QStandardItem(tr("System"));
-	settingsItem->appendRow(systemItem);
-	systemItem->appendRow(new QStandardItem(SystemSettingsWidget::menuEntry()));
-	systemItem->appendRow(new QStandardItem(InformationWidget::menuEntry()));
-
-	mMenuModel.appendRow(new QStandardItem(LanguageSelectionWidget::menuEntry()));
+	moreItem->appendRow(new QStandardItem(ProgrammingWidget::menuEntry()));
+	moreItem->appendRow(new QStandardItem(SystemSettingsWidget::menuEntry()));
+	moreItem->appendRow(new QStandardItem(InformationWidget::menuEntry()));
 
 	mMenuView.setModel(&mMenuModel);
+
+	mMenuView.setEditTriggers(QAbstractItemView::NoEditTriggers);
 
 	mMenuView.selectionModel()->select(
 			mMenuModel.index(0, 0)
@@ -94,6 +97,7 @@ StartWidget::StartWidget(Controller &controller, QWidget *parent)
 			);
 
 	mLayout.addWidget(&mTitleLabel);
+	mLayout.addWidget(&mNetworkWidget);
 	mLayout.addWidget(&mMenuView);
 
 	setLayout(&mLayout);
@@ -113,11 +117,16 @@ void StartWidget::launch()
 	const QModelIndex &currentIndex = mMenuView.currentIndex();
 	const QStandardItem * const currentItem = mMenuModel.itemFromIndex(currentIndex);
 	if (currentItem->hasChildren()) {
+		if (currentItem->text() == tr("Testing")) {
+			QProcess::startDetached("/etc/trik/init-ov7670-320x240.sh", {"0"});
+			QProcess::startDetached("/etc/trik/init-ov7670-320x240.sh", {"1"});
+		}
 		setRootIndex(currentIndex);
 	} else {
 		QString currentItemText = currentItem->text();
 
 		int result = TrikGuiDialog::normalExit;
+		QStringList ports;
 
 		if (currentItemText == FileManagerWidget::menuEntry()) {
 			/// @todo Why widgets are created every time?
@@ -140,30 +149,49 @@ void StartWidget::launch()
 			MotorsWidget motorsWidget(mController.brick(), MotorInterface::Type::servoMotor);
 			emit newWidget(motorsWidget);
 			result = motorsWidget.exec();
-		} else if (currentItemText == SensorsSelectionWidget::menuEntry(
-				SensorsSelectionWidget::SensorType::analogSensor))
-		{
-			SensorsSelectionWidget sensorsSelectionWidget(mController.brick()
-					, SensorsSelectionWidget::SensorType::analogSensor);
+		} else if (currentItemText == tr("Analog sensors")) {
+			ports = (mController.brick()).sensorPorts(trikControl::SensorInterface::Type::analogSensor);
+			ports.sort();
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::analogOrDigitalSensor);
+			emit newWidget(sensorsWidget);
 
-			emit newWidget(sensorsSelectionWidget);
-			result = sensorsSelectionWidget.exec();
-		} else if (currentItemText == SensorsSelectionWidget::menuEntry(
-				SensorsSelectionWidget::SensorType::digitalSensor))
-		{
-			SensorsSelectionWidget sensorsSelectionWidget(mController.brick()
-					, SensorsSelectionWidget::SensorType::digitalSensor);
+			result = sensorsWidget.exec();
+		} else if (currentItemText == tr("PWM Capture")) {
+			ports = (mController.brick()).pwmCapturePorts();
+			ports.sort();
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::pwmCapture);
+			emit newWidget(sensorsWidget);
 
-			emit newWidget(sensorsSelectionWidget);
-			result = sensorsSelectionWidget.exec();
-		} else if (currentItemText == SensorsSelectionWidget::menuEntry(
-				SensorsSelectionWidget::SensorType::encoder))
-		{
-			SensorsSelectionWidget sensorsSelectionWidget(mController.brick()
-					, SensorsSelectionWidget::SensorType::encoder);
+			result = sensorsWidget.exec();
+		} else if (currentItemText == tr("Digital sensors")) {
+			ports = (mController.brick()).sensorPorts(trikControl::SensorInterface::Type::digitalSensor);
+			ports.sort();
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::analogOrDigitalSensor);
+			emit newWidget(sensorsWidget);
 
-			emit newWidget(sensorsSelectionWidget);
-			result = sensorsSelectionWidget.exec();
+			result = sensorsWidget.exec();
+		} else if (currentItemText == tr("Encoders")) {
+			ports = (mController.brick()).encoderPorts();
+			ports.sort();
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::encoder);
+			emit newWidget(sensorsWidget);
+
+			result = sensorsWidget.exec();
+		} else if (currentItemText == tr("Gyroscope")) {
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::gyroscope);
+			emit newWidget(sensorsWidget);
+
+			result = sensorsWidget.exec();
+		} else if (currentItemText == tr("Accelerometer")) {
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::accelerometer);
+			emit newWidget(sensorsWidget);
+
+			result = sensorsWidget.exec();
+		} else if (currentItemText == tr("Camera")) {
+			SensorsWidget sensorsWidget(mController.brick(), ports, SensorsWidget::SensorType::camera);
+			emit newWidget(sensorsWidget);
+
+			result = sensorsWidget.exec();
 		} else if (currentItemText == CommunicationSettingsWidget::menuEntry()) {
 			if (mController.mailbox()) {
 				CommunicationSettingsWidget communicationSettingsWidget(*mController.mailbox());
@@ -178,8 +206,8 @@ void StartWidget::launch()
 			result = versionWidget.exec();
 		} else if (currentItemText == SystemSettingsWidget::menuEntry()) {
 			SystemSettingsWidget systemSettingsWidget(mFileManagerRoot);
-			connect(&systemSettingsWidget, SIGNAL(currentFilesDirPath(MainWidget::FileManagerRootType const&))
-					, this, SLOT(changeFileManagerRoot(MainWidget::FileManagerRootType const&)));
+			connect(&systemSettingsWidget, &SystemSettingsWidget::currentFilesDirPath
+					, this, &StartWidget::changeFileManagerRoot);
 
 			emit newWidget(systemSettingsWidget);
 			result = systemSettingsWidget.exec();
@@ -262,4 +290,3 @@ void StartWidget::keyPressEvent(QKeyEvent *event)
 		}
 	}
 }
-

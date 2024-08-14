@@ -22,16 +22,22 @@ using namespace trikControl;
 
 EventDeviceWorker::EventDeviceWorker(const QString &deviceFilePath, DeviceState &state
 		, const trikHal::HardwareAbstractionInterface &hardwareAbstraction)
-	: mEventFile(hardwareAbstraction.createEventFile(deviceFilePath, *QThread::currentThread()))
+	: mState(state)
+	, mHardwareAbstraction(hardwareAbstraction)
+	, mEventFileName(deviceFilePath)
 {
-	state.start();
+	mState.start();
+}
+
+void EventDeviceWorker::init()
+{
+	mEventFile.reset(mHardwareAbstraction.createEventFile(mEventFileName));
 	if (!mEventFile->open()) {
-		state.fail();
+		mState.fail();
 		return;
 	}
 
-	connect(mEventFile.data(), SIGNAL(newEvent(int, int, int, trikKernel::TimeVal))
-			, this, SLOT(onNewEvent(int, int, int, trikKernel::TimeVal)));
+	connect(mEventFile.data(), &trikHal::EventFileInterface::newEvent, this, &EventDeviceWorker::onNewEvent);
 }
 
 void EventDeviceWorker::onNewEvent(int eventType, int code, int value, const trikKernel::TimeVal &eventTime)

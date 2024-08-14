@@ -16,10 +16,11 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QString>
+#include <QVector>
 
 #include "displayWidgetInterface.h"
 
-#include "declSpec.h"
+#include <trikControl/trikControlDeclSpec.h>
 
 namespace trikControl {
 
@@ -38,12 +39,21 @@ public slots:
 	///        supported formats, but .jpg, .png, .bmp, .gif are supported.
 	virtual void showImage(const QString &fileName) = 0;
 
+	/// Shows given image on display. Scales from to fullscreen
+	/// @param array  - pixel data (depends on format)
+	/// @param width  - image width
+	/// @param height - image height
+	/// @param format - "rgb32" for packed xRGB32 (pixel per int32), "grayscale8"
+	/// for grayscale 8bit (int per pixel), "rgb888" for 3 ints per pixel (R,G,B -- 8bits each)
+	virtual void show(const QVector<int32_t> &array, int width, int height, const QString &format) = 0;
+
 	/// Add a label to the specific position of the screen without redrawing it.
 	/// If there already is a label in these coordinates, its contents will be updated.
 	/// @param text - label text.
 	/// @param x - label x coordinate.
 	/// @param y - label y coordinate.
-	virtual void addLabel(const QString &text, int x, int y) = 0;
+	/// @param fontSize - label font size
+	virtual void addLabel(const QString &text, int x, int y, int fontSize = -1) = 0;
 
 	/// Remove all labels from the screen.
 	virtual void removeLabels() = 0;
@@ -110,3 +120,5 @@ public slots:
 };
 
 }
+
+Q_DECLARE_METATYPE(trikControl::DisplayInterface *)
