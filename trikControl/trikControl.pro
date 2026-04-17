@@ -15,8 +15,6 @@ TEMPLATE = lib
 
 include(../global.pri)
 
-#QT += multimediawidgets
-
 PUBLIC_HEADERS += \
 	$$PWD/include/trikControl/batteryInterface.h \
 	$$PWD/include/trikControl/brickFactory.h \
@@ -95,7 +93,6 @@ HEADERS += \
 	$$PWD/src/soundSensorWorker.h \
 	$$PWD/src/tonePlayer.h \
 	$$PWD/src/vectorSensor.h \
-	$$PWD/src/vectorSensorWorker.h \
 	$$PWD/src/exceptions/incorrectDeviceConfigurationException.h \
 	$$PWD/src/exceptions/incorrectStateChangeException.h \
 	$$PWD/src/shapes/arc.h \
@@ -158,7 +155,6 @@ SOURCES += \
 	$$PWD/src/soundSensorWorker.cpp \
 	$$PWD/src/tonePlayer.cpp \
 	$$PWD/src/vectorSensor.cpp \
-	$$PWD/src/vectorSensorWorker.cpp \
 	$$PWD/src/shapes/ellipse.cpp \
 	$$PWD/src/shapes/point.cpp \
 	$$PWD/src/shapes/line.cpp \
@@ -192,11 +188,7 @@ OTHER_FILES += \
 
 DEFINES += TRIKCONTROL_LIBRARY
 
-QT += xml gui multimedia serialport
-
-if (equals(QT_MAJOR_VERSION, 5)) {
-	QT += widgets
-}
+QT += xml gui multimedia serialport quick
 
 links(trikRuntimeQsLog trikKernel trikHal trik-mlx90640)
 implementationIncludes(trikKernel trikHal)
@@ -210,10 +202,6 @@ copyToDestdir( \
 	$$PWD/../media/ \
 	, now \
 )
-
-trik_new_age {
-    DEFINES += TRIK_IIO_ACCEL_GYRO
-}
 
 installs()
 
