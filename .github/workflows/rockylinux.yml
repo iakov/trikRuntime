@@ -15,10 +15,7 @@ concurrency:
 jobs:
   rockylinux9:
     runs-on: ubuntu-latest
-    container:
-      image: rockylinux:9
-      env:
-        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    container: rockylinux:9
     defaults:
       run:
         shell: bash -l {0} # to force import of ~/.bash_profile
