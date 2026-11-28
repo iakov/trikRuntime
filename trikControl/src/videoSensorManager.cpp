@@ -205,7 +205,7 @@ void VideoSensorManager::activateForPort(const QString &port, trikDsp::Algorithm
 		return;
 	}
 
-	if (!mHeldPorts.contains(portId)) {
+	if (!mHeldPorts.count(portId)) {
 		// The camera is not held: start the (async) acquisition and request the
 		// DSP channel right away. The pipeline simply pulls empty until frames
 		// start flowing once the camera is open, so no pending-activation
@@ -250,11 +250,11 @@ void VideoSensorManager::handleStopRequested(const QString &port, int flags)
 		// Park the camera: latch the stop so a later acquire/release parks it
 		// again, keep the device open for a quick re-acquire.
 		mCameraManager->stopStreaming(port);
-		if (mHeldPorts.remove(portId)) {
+		if (mHeldPorts.erase(portId)) {
 			mCameraManager->release(portId);
 		}
 	} else if (flags & StopAll) {
-		if (mHeldPorts.remove(portId)) {
+		if (mHeldPorts.erase(portId)) {
 			mCameraManager->release(portId);
 		}
 	}
@@ -281,7 +281,7 @@ void VideoSensorManager::stop()
 
 	// The DSP is single-channel: if the detached encoder is the active channel
 	// it must keep streaming, so skip the deactivation.
-	if (mActivePortId >= 0 && !mDetachedPorts.contains(mActivePortId)) {
+	if (mActivePortId >= 0 && !mDetachedPorts.count(mActivePortId)) {
 		DspFramePipeline::ChannelSpec spec;
 		mPipeline->setChannel(spec);
 		mActivePortId = -1;
@@ -290,7 +290,7 @@ void VideoSensorManager::stop()
 
 	// Stop and release every held camera except detached ports.
 	for (auto it = mHeldPorts.begin(); it != mHeldPorts.end();) {
-		if (mDetachedPorts.contains(*it)) {
+		if (mDetachedPorts.count(*it)) {
 			++it;
 			continue;
 		}
@@ -309,9 +309,9 @@ void VideoSensorManager::releasePort(const QString &port)
 		mPipeline->setChannel(spec);
 		mActivePortId = -1;
 	}
-	mDetachedPorts.remove(portId);
+	mDetachedPorts.erase(portId);
 
-	if (mHeldPorts.remove(portId)) {
+	if (mHeldPorts.erase(portId)) {
 		mCameraManager->release(portId);
 	}
 }
@@ -322,14 +322,14 @@ void VideoSensorManager::setPortDetached(const QString &port, bool detached)
 	if (detached) {
 		mDetachedPorts.insert(portId);
 	} else {
-		mDetachedPorts.remove(portId);
+		mDetachedPorts.erase(portId);
 	}
 }
 
 void VideoSensorManager::stopTranslation(const QString &port, bool keepCamera)
 {
 	const int portId = mCameraManager->portId(port);
-	mDetachedPorts.remove(portId);
+	mDetachedPorts.erase(portId);
 
 	auto it = mJpegEncoders.find(portId);
 	if (it == mJpegEncoders.end()) {
@@ -343,7 +343,7 @@ void VideoSensorManager::clear()
 {
 	const auto eraseNonDetached = [this](auto &map) {
 		for (auto it = map.begin(); it != map.end();) {
-			if (mDetachedPorts.contains(it.key())) {
+			if (mDetachedPorts.count(it.key())) {
 				++it;
 			} else {
 				delete it.value();

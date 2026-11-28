@@ -15,7 +15,7 @@
 #pragma once
 
 #include <QtCore/QString>
-#include <QtCore/QSet>
+#include <set>
 
 #include <trikHal/systemConsoleInterface.h>
 
@@ -34,7 +34,7 @@ public:
 	bool load(const QString &module);
 
 private:
-	QSet<QString> mLoadedModules;
+	std::set<QString> mLoadedModules;
 	trikHal::SystemConsoleInterface &mConsole;
 };
 

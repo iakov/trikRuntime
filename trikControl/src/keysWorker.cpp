@@ -55,12 +55,12 @@ void KeysWorker::reset()
 bool KeysWorker::wasPressed(int code)
 {
 	mLock.lockForRead();
-	const bool result = mWasPressed.contains(code);
+	const bool result = mWasPressed.count(code);
 	mLock.unlock();
 
 	if (result) {
 		mLock.lockForWrite();
-		mWasPressed.remove(code);
+		mWasPressed.erase(code);
 		mLock.unlock();
 	}
 

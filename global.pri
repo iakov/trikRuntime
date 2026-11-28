@@ -219,9 +219,10 @@ isEmpty(THIS_IS_QS_LOG) {
 	INCLUDEPATH += $$GLOBAL_PWD/qslog/qslog
 }
 
-CONFIG += c++14
+CONFIG += c++17
 
 DEFINES += QT_FORCE_ASSERTS
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x050F00
 
 QMAKE_CXXFLAGS += -pedantic-errors -Wextra -Werror
 

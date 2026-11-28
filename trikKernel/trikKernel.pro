@@ -17,6 +17,7 @@ TEMPLATE = lib
 include(../global.pri)
 
 QT += widgets xml
+greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
 
 HEADERS += \
 	$$PWD/include/trikKernel/applicationInitHelper.h \

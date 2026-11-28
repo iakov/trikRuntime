@@ -15,6 +15,8 @@
 TEMPLATE = lib
 
 include(../global.pri)
+# Postponed: trikScriptRunner uses QScriptEngine (removed in Qt 6) and QRegExp/QSet
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x000000
 
 DEBUG_EXT=$${CONFIGURATION_SUFFIX}
 

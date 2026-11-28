@@ -40,7 +40,7 @@ Gamepad::Status Gamepad::status() const
 
 bool Gamepad::buttonWasPressed(int buttonNumber)
 {
-	return mButtonWasPressed.remove(buttonNumber);
+	return mButtonWasPressed.erase(buttonNumber);
 }
 
 bool Gamepad::buttonIsPressed(int buttonNumber)
@@ -91,7 +91,7 @@ void Gamepad::onNewData(const QString &data)
 		Q_EMIT connected();
 	}
 
-	const QStringList cmd = data.split(" ", QString::SkipEmptyParts);
+	const QStringList cmd = data.split(" ", Qt::SkipEmptyParts);
 	if (cmd.isEmpty()) {
 		return;
 	}

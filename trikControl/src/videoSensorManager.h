@@ -16,7 +16,7 @@
 
 #include <QtCore/QHash>
 #include <QtCore/QScopedPointer>
-#include <QtCore/QSet>
+#include <set>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QString>
 #include <QtCore/QThread>
@@ -143,13 +143,13 @@ private:
 	QScopedPointer<QThread> mDspThread;
 
 	/// Port ids whose cameras this manager currently holds.
-	QSet<int> mHeldPorts;
+	std::set<int> mHeldPorts;
 
 	/// Id of the port currently driving the DSP channel (-1 when inactive).
 	int mActivePortId = -1;
 
 	/// Ports whose translation/sensor is detached and must survive stop()/clear().
-	QSet<int> mDetachedPorts;
+	std::set<int> mDetachedPorts;
 
 	/// Sensor instances indexed by port id.
 	QHash<int, LineSensor *> mLineSensors;

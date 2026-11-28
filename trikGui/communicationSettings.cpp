@@ -14,7 +14,7 @@
 
 #include "communicationSettings.h"
 
-#include <QtCore/QRegExp>
+#include <QtCore/QRegularExpression>
 #include <QtGui/QKeyEvent>
 
 using namespace trikGui;
@@ -53,8 +53,8 @@ void CommunicationSettings::connectToLeader(const QString &newThirdFourthIpPart)
 		return;
 	}
 
-	const QString thirdPart = thirdFourthIpPart[0].replace(QRegExp("^0+"), "");
-	const QString fourthPart = thirdFourthIpPart[1].replace(QRegExp("^0+"), "");
+	const QString thirdPart = thirdFourthIpPart[0].replace(QRegularExpression("^0+"), "");
+	const QString fourthPart = thirdFourthIpPart[1].replace(QRegularExpression("^0+"), "");
 	result[2] = thirdPart.isEmpty() ? "0" : thirdPart;
 	result[3] = fourthPart.isEmpty() ? "0" : fourthPart;
 

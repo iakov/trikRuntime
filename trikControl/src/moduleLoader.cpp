@@ -25,7 +25,7 @@ ModuleLoader::ModuleLoader(trikHal::SystemConsoleInterface &console)
 
 bool ModuleLoader::load(const QString &module)
 {
-	if (mLoadedModules.contains(module)) {
+	if (mLoadedModules.count(module)) {
 		return true;
 	}
 

@@ -145,7 +145,7 @@ QStringList CommandLineParser::positionalArgs() const
 
 bool CommandLineParser::isSet(const QString &optionShortName) const
 {
-	return mOptionValues.contains(optionShortName) || mSetFlags.contains(optionShortName);
+	return mOptionValues.contains(optionShortName) || mSetFlags.count(optionShortName);
 }
 
 QString CommandLineParser::value(const QString &optionShortName) const

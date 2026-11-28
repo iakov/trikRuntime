@@ -16,7 +16,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QScopedPointer>
-#include <QtCore/QSet>
+#include <set>
 #include <QtCore/QReadWriteLock>
 
 #include <trikHal/hardwareAbstractionInterface.h>
@@ -64,7 +64,7 @@ private:
 	QScopedPointer<trikHal::EventFileInterface> mEventFile;
 	int mButtonCode = 0;
 	int mButtonValue = 0;
-	QSet<int> mWasPressed;
+	std::set<int> mWasPressed;
 	QReadWriteLock mLock;
 
 	const trikHal::HardwareAbstractionInterface &mHardwareAbstraction;

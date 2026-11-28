@@ -17,7 +17,7 @@
 #include <QtCore/QString>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QHash>
-#include <QtCore/QSet>
+#include <set>
 #include <QtCore/QStringList>
 #include "trikKernelDeclSpec.h"
 
@@ -76,7 +76,7 @@ private:
 	QHash<QString, QString> mOptionValues;
 	QHash<QString, QString> mFlagDescriptions;
 	QHash<QString, QString> mFlagLongNames;
-	QSet<QString> mSetFlags;
+	std::set<QString> mSetFlags;
 };
 
 }

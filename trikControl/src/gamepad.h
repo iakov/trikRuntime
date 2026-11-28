@@ -17,7 +17,7 @@
 #include <QtCore/QScopedPointer>
 #include <QtCore/QThread>
 #include <QtCore/QHash>
-#include <QtCore/QSet>
+#include <set>
 #include <QtCore/QTimer>
 
 #include <trikKernel/configurer.h>
@@ -90,7 +90,7 @@ private:
 
 	Fifo mUnderlyingFifo;
 
-	QSet<int> mButtonWasPressed;
+	std::set<int> mButtonWasPressed;
 	QHash<int, bool> mButtonState;
 
 	/// Hack for the fact that gamepad does not send button press events, only releases. We count button as "pressed"

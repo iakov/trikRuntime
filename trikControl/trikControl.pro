@@ -199,7 +199,8 @@ DEFINES += TRIKCONTROL_LIBRARY
 	SOURCES += $$PWD/src/v4l2CameraImplementation.cpp
 }
 
-QT += xml gui multimedia serialport quick
+QT += xml gui multimedia serialport
+!greaterThan(QT_MAJOR_VERSION, 5): QT += quick
 
 links(trikRuntimeQsLog trikKernel trikDsp trikHal trik-mlx90640)
 interfaceIncludes(trikDsp)
